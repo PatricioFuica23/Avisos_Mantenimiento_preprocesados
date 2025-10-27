@@ -140,6 +140,18 @@ with right:
         grupos = ["(Todos)"] + sorted([str(x) for x in df[col_grupo].dropna().unique()])
         seleccion = st.selectbox("Grupo planif.", grupos, index=0)
 
+    # 2) Filtro por prioridad (opcional)
+    seleccion = "(Todos)"
+    if col_grupo in df.columns:
+        grupos = ["(Todos)"] + sorted([str(x) for x in df[col_grupo].dropna().unique()])
+        seleccion = st.selectbox("Prioridad", grupos, index=0)
+
+    # 3) Filtro por Indicador ABC (opcional)
+    seleccion = "(Todos)"
+    if col_grupo in df.columns:
+        grupos = ["(Todos)"] + sorted([str(x) for x in df[col_grupo].dropna().unique()])
+        seleccion = st.selectbox("Indicador ABC", grupos, index=0)
+
     # 2) Rango de fecha de aviso
     fecha_min, fecha_max = None, None
     if "Fecha de aviso" in df.columns:
