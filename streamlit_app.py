@@ -121,6 +121,8 @@ if "Fecha de aviso" in df.columns:
 
 col_grupo = "Grupo planif."
 col_crit = "Criticidad_1a100"
+col_prio = "Prioridad"
+col_indicador = "Indicador ABC"
 
 # Criticidad numérica
 if col_crit in df.columns:
@@ -142,14 +144,14 @@ with right:
 
     # 2) Filtro por prioridad (opcional)
     seleccion = "(Todos)"
-    if col_grupo in df.columns:
-        grupos = ["(Todos)"] + sorted([str(x) for x in df[col_grupo].dropna().unique()])
+    if  col_prio in df.columns:
+        grupos = ["(Todos)"] + sorted([str(x) for x in df[col_prio].dropna().unique()])
         seleccion = st.selectbox("Prioridad", grupos, index=0)
 
     # 3) Filtro por Indicador ABC (opcional)
     seleccion = "(Todos)"
-    if col_grupo in df.columns:
-        grupos = ["(Todos)"] + sorted([str(x) for x in df[col_grupo].dropna().unique()])
+    if col_indicador in df.columns:
+        grupos = ["(Todos)"] + sorted([str(x) for x in df[col_indicador].dropna().unique()])
         seleccion = st.selectbox("Indicador ABC", grupos, index=0)
 
     # 2) Rango de fecha de aviso
