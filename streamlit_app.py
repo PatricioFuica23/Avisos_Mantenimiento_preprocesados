@@ -164,14 +164,60 @@ if sel_prioridades is not None and len(sel_prioridades) > 0:
 if sel_abc is not None and len(sel_abc) > 0:
     df_filtrado = df_filtrado[df_filtrado[col_abc].astype(str).isin(sel_abc)]
 
-# ---- Layout centrado ----
+# =========================
+# Layout centrado
+# =========================
 left, mid, right = st.columns([1, 6, 1])
 
 with mid:
     st.title("📊 Clasificación de Avisos")
+
+    # ===== KPIs (indicadores) arriba =====
+    total_registros = len(df_filtrado)
+    grupos_mostrados = df_filtrado[col_grupo].nunique() if col_grupo in df_filtrado.columns else None
+    if col_crit in df_filtrado.columns:
+        serie_crit = pd.to_numeric(df_filtrado[col_crit], errors="coerce").dropna()
+    else:
+        serie_crit = pd.Series(dtype=float)
+
+    prom = f"{serie_crit.mean():.1f}" if not serie_crit.empty else "—"
+    med  = f"{serie_crit.median():.0f}" if not serie_crit.empty else "—"
+    pct_alta = f"{(serie_crit.ge(80).mean() * 100):.1f}%" if not serie_crit.empty else "—"
+
+    k1, k2, k3, k4, k5 = st.columns(5)
+    k1.metric("Avisos mostrados", f"{total_registros:,}".replace(",", "."))
+    k2.metric("Grupos planif. mostrados", grupos_mostrados if grupos_mostrados is not None else "—")
+    k3.metric("Criticidad promedio", prom)
+    k4.metric("Mediana criticidad", med)
+    k5.metric("% criticidad ≥ 80", pct_alta)
+
+    st.markdown("---")
+
+    # ===== Gráfico: X=Criticidad (1..100), Y=frecuencia =====
+    if col_crit in df_filtrado.columns and not df_filtrado.empty:
+        crit = pd.to_numeric(df_filtrado[col_crit], errors="coerce").dropna()
+        # Si quieres agrupar por enteros estrictos:
+        crit = crit.round().astype(int)
+        crit = crit.clip(lower=1, upper=100)
+
+        index_1_100 = pd.RangeIndex(1, 101, name="Criticidad")
+        conteo = (
+            crit.value_counts(dropna=False)
+                .reindex(index_1_100, fill_value=0)
+                .rename("Avisos")
+                .to_frame()
+        )
+
+        st.subheader("Frecuencia de avisos por Criticidad (1 → 100) (según filtros)")
+        st.bar_chart(conteo, use_container_width=True)
+    else:
+        st.info("No hay datos de 'Criticidad_1a100' para graficar tras los filtros.")
+
+    st.markdown("---")
+
+    # ===== Tabla con gradiente manual (sin matplotlib) =====
     st.caption("Vista de avisos con filtros (Grupo planif., Prioridad, Indicador ABC) y gradiente de criticidad (1→verde, 100→rojo).")
 
-    # Tabla con estilo de criticidad
     if col_crit in df_filtrado.columns:
         styled = df_filtrado.style.format(precision=0, subset=[col_crit])
         styled = styled.apply(lambda col: estilos_criticidad(col, 1, 100), subset=[col_crit])
@@ -181,34 +227,6 @@ with mid:
 
     st.markdown("---")
 
-    # ======= Gráfico dinámico =======
-    # Por defecto: conteo por Prioridad. Si no existe, por Indicador ABC.
-    if col_prior in df_filtrado.columns and not df_filtrado.empty:
-        df_plot = (
-            df_filtrado.assign(Prioridad=df_filtrado[col_prior].astype(str).fillna("Sin dato"))
-            .groupby("Prioridad", dropna=False)
-            .size()
-            .sort_values(ascending=False)
-            .rename("Avisos")
-            .to_frame()
-        )
-        st.subheader("Distribución de avisos por Prioridad (según filtros)")
-        st.bar_chart(df_plot, use_container_width=True)
-    elif col_abc in df_filtrado.columns and not df_filtrado.empty:
-        df_plot = (
-            df_filtrado.assign(**{col_abc: df_filtrado[col_abc].astype(str).fillna("Sin dato")})
-            .groupby(col_abc, dropna=False)
-            .size()
-            .sort_values(ascending=False)
-            .rename("Avisos")
-            .to_frame()
-        )
-        st.subheader("Distribución de avisos por Indicador ABC (según filtros)")
-        st.bar_chart(df_plot, use_container_width=True)
-    else:
-        st.info("No se encontraron columnas para graficar (Prioridad o Indicador ABC), o no hay datos tras los filtros.")
-
-    # KPIs simples
     total = len(df_filtrado)
     if col_grupo in df.columns and seleccion_grupo != "(Todos)":
         st.write(f"**Registros mostrados para Grupo planif. = `{seleccion_grupo}`:** {total}")
