@@ -3,7 +3,6 @@ from __future__ import annotations
 import streamlit as st
 import pandas as pd
 import numpy as np
-from datetime import date
 
 st.set_page_config(
     page_title="Clasificación de Avisos",
@@ -62,7 +61,7 @@ def seleccionar_columnas(df: pd.DataFrame) -> pd.DataFrame:
 def color_hex_verde_amarillo_rojo(v: float, vmin: float = 1, vmax: float = 100) -> str:
     """
     Interpola un color entre verde (#2ecc71), amarillo (#f1c40f) y rojo (#e74c3c)
-    según el valor v en el rango [vmin, vmax]. Devuelve HEX "#RRGGBB".
+    según el valor v en [vmin, vmax]. Devuelve HEX "#RRGGBB".
     """
     verde = (0x2e, 0xcc, 0x71)
     amarillo = (0xf1, 0xc4, 0x0f)
@@ -94,9 +93,11 @@ def estilos_criticidad(col: pd.Series, vmin: float = 1, vmax: float = 100):
     """Devuelve estilos CSS por celda para la columna de criticidad."""
     return [f"background-color: {color_hex_verde_amarillo_rojo(val, vmin, vmax)}" for val in col]
 
-# ---- Sidebar (solo carga de archivo) ----
+# =========================
+# Sidebar (carga de archivo)
+# =========================
 with st.sidebar:
-    st.header("📁 Datos")
+    st.header("⚙️ Controles")
     st.caption("Sube otro archivo si quieres probar diferente data.")
     uploaded = st.file_uploader("Cargar ranking_nb.xlsx", type=["xlsx"])
 
@@ -111,112 +112,66 @@ except FileNotFoundError:
     st.error("No se encontró `ranking_nb.xlsx`. Súbelo desde la barra lateral o colócalo junto a `streamlit_app.py`.")
     st.stop()
 
-# Seleccionar columnas
+# Seleccionar columnas y formatear
 df = seleccionar_columnas(df_raw)
 
-# ---- Transformaciones de formato ----
-# Fecha a tipo date
 if "Fecha de aviso" in df.columns:
     df["Fecha de aviso"] = pd.to_datetime(df["Fecha de aviso"], errors="coerce").dt.date
 
 col_grupo = "Grupo planif."
-col_crit = "Criticidad_1a100"
-col_prio = "Prioridad"
-col_indicador = "Indicador ABC"
+col_prior = "Prioridad"
+col_abc   = "Indicador ABC"
+col_crit  = "Criticidad_1a100"
 
-# Criticidad numérica
 if col_crit in df.columns:
     df[col_crit] = pd.to_numeric(df[col_crit], errors="coerce")
 
-# ---- Layout con columna derecha ancha para filtros ----
-# Aumentamos ancho de la columna derecha para acomodar los controles
-left, mid, right = st.columns([1, 6, 2], gap="large")
-
-# ---- Filtros (derecha) ----
-with right:
-    st.header("🔎 Filtros")
-
-    # 1) Filtro por Grupo planif. (opcional)
-    seleccion = "(Todos)"
+# =========================
+# Sidebar (filtros de negocio)
+# =========================
+with st.sidebar:
+    st.subheader("Filtros")
+    # Grupo planif. (select único)
     if col_grupo in df.columns:
         grupos = ["(Todos)"] + sorted([str(x) for x in df[col_grupo].dropna().unique()])
-        seleccion = st.selectbox("Grupo planif.", grupos, index=0)
+        seleccion_grupo = st.selectbox("Grupo planif.", grupos, index=0)
+    else:
+        seleccion_grupo = "(Todos)"
 
-    # 2) Filtro por prioridad (opcional)
-    seleccion = "(Todos)"
-    if  col_prio in df.columns:
-        grupos = ["(Todos)"] + sorted([str(x) for x in df[col_prio].dropna().unique()])
-        seleccion = st.selectbox("Prioridad", grupos, index=0)
+    # Prioridad (multi)
+    if col_prior in df.columns:
+        prioridades_opts = sorted([str(x) for x in df[col_prior].dropna().unique()])
+        sel_prioridades = st.multiselect("Prioridad", prioridades_opts, default=prioridades_opts)
+    else:
+        sel_prioridades = None
 
-    # 3) Filtro por Indicador ABC (opcional)
-    seleccion = "(Todos)"
-    if col_indicador in df.columns:
-        grupos = ["(Todos)"] + sorted([str(x) for x in df[col_indicador].dropna().unique()])
-        seleccion = st.selectbox("Indicador ABC", grupos, index=0)
+    # Indicador ABC (multi)
+    if col_abc in df.columns:
+        abc_opts = sorted([str(x) for x in df[col_abc].dropna().unique()])
+        sel_abc = st.multiselect("Indicador ABC", abc_opts, default=abc_opts)
+    else:
+        sel_abc = None
 
-    # 2) Rango de fecha de aviso
-    fecha_min, fecha_max = None, None
-    if "Fecha de aviso" in df.columns:
-        # Detecta min y max ignorando NaN
-        if df["Fecha de aviso"].notna().any():
-            fmin = df["Fecha de aviso"].min()
-            fmax = df["Fecha de aviso"].max()
-            # Por seguridad, castea a date
-            if not isinstance(fmin, date):
-                fmin = pd.to_datetime(fmin, errors="coerce").date()
-            if not isinstance(fmax, date):
-                fmax = pd.to_datetime(fmax, errors="coerce").date()
-            fecha_min, fecha_max = st.date_input(
-                "Fecha de aviso (rango)",
-                value=(fmin, fmax),
-                min_value=fmin,
-                max_value=fmax
-            )
-        else:
-            st.info("No hay fechas válidas para filtrar.")
-
-    # 3) Rango de criticidad
-    criticidad_rango = None
-    if col_crit in df.columns:
-        # Definir límites reales dentro de [1, 100]
-        cmin = int(np.nanmin([v for v in df[col_crit].values if pd.notna(v)]) if df[col_crit].notna().any() else 1)
-        cmax = int(np.nanmax([v for v in df[col_crit].values if pd.notna(v)]) if df[col_crit].notna().any() else 100)
-        # Acotar a 1..100
-        cmin = max(1, min(100, cmin))
-        cmax = max(1, min(100, cmax))
-        if cmin > cmax:
-            cmin, cmax = cmax, cmin
-        criticidad_rango = st.slider(
-            "Criticidad_1a100 (rango)",
-            min_value=1, max_value=100,
-            value=(cmin, cmax)
-        )
-
-# ---- Aplicar filtros a los datos ----
+# ---- Aplicar filtros ----
 df_filtrado = df.copy()
 
-# Grupo planif.
-if col_grupo in df_filtrado.columns and seleccion != "(Todos)":
-    df_filtrado = df_filtrado[df_filtrado[col_grupo].astype(str) == seleccion]
+if col_grupo in df_filtrado.columns and seleccion_grupo != "(Todos)":
+    df_filtrado = df_filtrado[df_filtrado[col_grupo].astype(str) == seleccion_grupo]
 
-# Fecha de aviso
-if "Fecha de aviso" in df_filtrado.columns and fecha_min and fecha_max:
-    df_filtrado = df_filtrado[
-        df_filtrado["Fecha de aviso"].between(fecha_min, fecha_max)
-    ]
+if sel_prioridades is not None and len(sel_prioridades) > 0:
+    df_filtrado = df_filtrado[df_filtrado[col_prior].astype(str).isin(sel_prioridades)]
 
-# Criticidad
-if col_crit in df_filtrado.columns and criticidad_rango:
-    c_low, c_high = criticidad_rango
-    df_filtrado = df_filtrado[
-        (df_filtrado[col_crit] >= c_low) & (df_filtrado[col_crit] <= c_high)
-    ]
+if sel_abc is not None and len(sel_abc) > 0:
+    df_filtrado = df_filtrado[df_filtrado[col_abc].astype(str).isin(sel_abc)]
 
-# ---- Centro: tabla ----
+# ---- Layout centrado ----
+left, mid, right = st.columns([1, 6, 1])
+
 with mid:
     st.title("📊 Clasificación de Avisos")
-    st.caption("Tabla centrada con filtros a la derecha y gradiente de criticidad (1→verde, 100→rojo).")
+    st.caption("Vista de avisos con filtros (Grupo planif., Prioridad, Indicador ABC) y gradiente de criticidad (1→verde, 100→rojo).")
 
+    # Tabla con estilo de criticidad
     if col_crit in df_filtrado.columns:
         styled = df_filtrado.style.format(precision=0, subset=[col_crit])
         styled = styled.apply(lambda col: estilos_criticidad(col, 1, 100), subset=[col_crit])
@@ -225,8 +180,37 @@ with mid:
         st.dataframe(df_filtrado, use_container_width=True, hide_index=True)
 
     st.markdown("---")
-    total = len(df_filtrado)
-    if col_grupo in df.columns and seleccion != "(Todos)":
-        st.write(f"**Registros mostrados para Grupo planif. = `{seleccion}`:** {total}")
+
+    # ======= Gráfico dinámico =======
+    # Por defecto: conteo por Prioridad. Si no existe, por Indicador ABC.
+    if col_prior in df_filtrado.columns and not df_filtrado.empty:
+        df_plot = (
+            df_filtrado.assign(Prioridad=df_filtrado[col_prior].astype(str).fillna("Sin dato"))
+            .groupby("Prioridad", dropna=False)
+            .size()
+            .sort_values(ascending=False)
+            .rename("Avisos")
+            .to_frame()
+        )
+        st.subheader("Distribución de avisos por Prioridad (según filtros)")
+        st.bar_chart(df_plot, use_container_width=True)
+    elif col_abc in df_filtrado.columns and not df_filtrado.empty:
+        df_plot = (
+            df_filtrado.assign(**{col_abc: df_filtrado[col_abc].astype(str).fillna("Sin dato")})
+            .groupby(col_abc, dropna=False)
+            .size()
+            .sort_values(ascending=False)
+            .rename("Avisos")
+            .to_frame()
+        )
+        st.subheader("Distribución de avisos por Indicador ABC (según filtros)")
+        st.bar_chart(df_plot, use_container_width=True)
     else:
-        st.write(f"**Registros mostrados:** {total}")
+        st.info("No se encontraron columnas para graficar (Prioridad o Indicador ABC), o no hay datos tras los filtros.")
+
+    # KPIs simples
+    total = len(df_filtrado)
+    if col_grupo in df.columns and seleccion_grupo != "(Todos)":
+        st.write(f"**Registros mostrados para Grupo planif. = `{seleccion_grupo}`:** {total}")
+    else:
+        st.write(f"**Registros mostrados (según filtros):** {total}")
