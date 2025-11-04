@@ -143,14 +143,14 @@ with st.sidebar:
         prioridades_opts = sorted([str(x) for x in df[col_prior].dropna().unique()])
         sel_prioridades = st.selectbox("Prioridad", prioridades_opts, index=0)
     else:
-        sel_prioridades = None
+        sel_prioridades = "(Todos)"
 
     # Indicador ABC (multi)
     if col_abc in df.columns:
         abc_opts = sorted([str(x) for x in df[col_abc].dropna().unique()])
         sel_abc = st.selectbox("Indicador ABC", abc_opts, index=0)
     else:
-        sel_abc = None
+        sel_abc = "(Todos)"
 
 # ---- Aplicar filtros ----
 df_filtrado = df.copy()
