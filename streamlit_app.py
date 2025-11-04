@@ -141,14 +141,14 @@ with st.sidebar:
     # Prioridad (multi)
     if col_prior in df.columns:
         prioridades_opts = ["(Todos)"] + sorted([str(x) for x in df[col_prior].dropna().unique()])
-        sel_prioridades = st.multiselect("Prioridad", prioridades_opts, default=[])
+        sel_prioridades = st.selectbox("Prioridad", prioridades_opts, index=0)
     else:
         sel_prioridades = "(Todos)"
 
     # Indicador ABC (multi)
     if col_abc in df.columns:
         abc_opts = ["(Todos)"] + sorted([str(x) for x in df[col_abc].dropna().unique()])
-        sel_abc = st.multiselect("Indicador ABC", abc_opts, default=[])
+        sel_abc = st.selectbox("Indicador ABC", abc_opts, index=0)
     else:
         sel_abc = "(Todos)"
 
