@@ -3,6 +3,7 @@ from __future__ import annotations
 import streamlit as st
 import pandas as pd
 import numpy as np
+from io import BytesIO
 
 st.set_page_config(
     page_title="Clasificación de Avisos",
@@ -138,23 +139,19 @@ with st.sidebar:
     else:
         seleccion_grupo = "(Todos)"
 
-    # Prioridad (multi)
+    # Prioridad (select único, igual que Grupo)
     if col_prior in df.columns:
         prioridades_opts = ["(Todos)"] + sorted([str(x) for x in df[col_prior].dropna().unique()])
         sel_prioridades = st.selectbox("Prioridad", prioridades_opts, index=0)
     else:
         sel_prioridades = "(Todos)"
 
-    # Indicador ABC (multi)
+    # Indicador ABC (select único, igual que Grupo)
     if col_abc in df.columns:
         abc_opts = ["(Todos)"] + sorted([str(x) for x in df[col_abc].dropna().unique()])
         sel_abc = st.selectbox("Indicador ABC", abc_opts, index=0)
     else:
         sel_abc = "(Todos)"
-
-    # DEBUG opcional (descomenta si necesitas inspeccionar tipos/valores)
-    # st.write("DEBUG sel_prioridades:", type(sel_prioridades), sel_prioridades)
-    # st.write("DEBUG sel_abc:", type(sel_abc), sel_abc)
 
 # ---- Aplicar filtros ----
 df_filtrado = df.copy()
@@ -162,18 +159,13 @@ df_filtrado = df.copy()
 if col_grupo in df_filtrado.columns and seleccion_grupo != "(Todos)":
     df_filtrado = df_filtrado[df_filtrado[col_grupo].astype(str) == seleccion_grupo]
 
-# Asegurar que sel_prioridades y sel_abc sean iterables de escalares
-# (ya lo son por multiselect, pero lo hacemos defensivo por si cambias UI)
-if isinstance(sel_prioridades, (str, int, float)):
-    sel_prioridades = [sel_prioridades]
-if isinstance(sel_abc, (str, int, float)):
-    sel_abc = [sel_abc]
+# Prioridad (comparación simple porque es un único valor)
+if col_prior in df_filtrado.columns and sel_prioridades != "(Todos)":
+    df_filtrado = df_filtrado[df_filtrado[col_prior].astype(str) == sel_prioridades]
 
-if sel_prioridades:  # lista no vacía -> aplicamos filtro
-    df_filtrado = df_filtrado[df_filtrado[col_prior].astype(str).isin(sel_prioridades)]
-
-if sel_abc:  # lista no vacía -> aplicamos filtro
-    df_filtrado = df_filtrado[df_filtrado[col_abc].astype(str).isin(sel_abc)]
+# Indicador ABC (comparación simple porque es un único valor)
+if col_abc in df_filtrado.columns and sel_abc != "(Todos)":
+    df_filtrado = df_filtrado[df_filtrado[col_abc].astype(str) == sel_abc]
 
 # =========================
 # Layout centrado
@@ -226,16 +218,107 @@ with mid:
 
     st.markdown("---")
 
-    # ===== Tabla con gradiente manual (sin matplotlib) =====
-    st.caption("Vista de avisos con filtros (Grupo planif., Prioridad, Indicador ABC) y gradiente de criticidad (1→verde, 100→rojo).")
+    # ===== Tabla editable con casilla "Gestionado" y gradiente de criticidad =====
+    st.caption("Vista de avisos con filtros. Marca 'Gestionado' para indicar que un ticket ya fue gestionado.")
 
+    # Identificador para mapear estados; usamos "Aviso" si existe, si no creamos "Aviso_id"
+    id_col = "Aviso"
+    if id_col not in df_filtrado.columns:
+        # crear id alternativo único
+        id_col = "Aviso_id"
+        df_filtrado = df_filtrado.reset_index(drop=True).copy()
+        df_filtrado[id_col] = df_filtrado.index.astype(str)
+
+    flag_col = "Gestionado"
+
+    # Si no existe columna de flag, la creamos (False por defecto)
+    if flag_col not in df_filtrado.columns:
+        df_filtrado[flag_col] = False
+
+    # Normalizar tipos (booleana)
+    df_filtrado[flag_col] = df_filtrado[flag_col].astype(bool)
+
+    # Guardar copia en session_state para persistencia dentro de la sesión
+    ss_key = "avisos_gestionados_df"
+    # Si el origen cambió (por ejemplo se subió otro archivo o se cambiaron filtros), actualizar session_state
+    # Para detectar cambios básicos usamos la longitud y la lista de ids visibles
+    ids_visibles = tuple(df_filtrado[id_col].astype(str).tolist())
+    if ss_key not in st.session_state or st.session_state.get(f"{ss_key}_ids") != ids_visibles:
+        st.session_state[ss_key] = df_filtrado.reset_index(drop=True).copy()
+        st.session_state[f"{ss_key}_ids"] = ids_visibles
+
+    # Mostrar editor experimental (permite editar checkboxes)
+    # Nota: experimental_data_editor puede ser diferente según versión; si no está disponible, dime y lo adapto.
+    editable_df = st.experimental_data_editor(
+        st.session_state[ss_key],
+        num_rows="dynamic",
+        use_container_width=True,
+        key="editor_avisos"
+    )
+
+    # Actualizamos session_state con las modificaciones
+    st.session_state[ss_key] = editable_df.copy()
+
+    # Reflejar los cambios en df_filtrado para que el resto del UI use el estado actualizado
+    if id_col in editable_df.columns:
+        editar = editable_df[[id_col, flag_col]].copy()
+        editar[id_col] = editar[id_col].astype(str)
+        df_filtrado = df_filtrado.copy()
+        df_filtrado[id_col] = df_filtrado[id_col].astype(str)
+
+        mapa_flag = dict(zip(editar[id_col], editar[flag_col]))
+        df_filtrado[flag_col] = df_filtrado[id_col].map(mapa_flag).fillna(False).astype(bool)
+    else:
+        st.warning(f"No se encontró la columna `{id_col}` para mapear estados. Revisa el identificador único.")
+
+    # ===== Mostrar la tabla con estilo (criticidad) pero usando el dataframe actualizado =====
     if col_crit in df_filtrado.columns:
-        # Aplicar estilo solamente a la columna de criticidad
-        styled = df_filtrado.style.format(precision=0, subset=[col_crit])
-        styled = styled.apply(lambda col: estilos_criticidad(col, 1, 100), subset=[col_crit])
-        st.dataframe(styled, use_container_width=True, hide_index=True)
+        # Añadimos una indicación visual para los gestionados (columna auxiliar)
+        df_para_mostrar = df_filtrado.copy()
+        df_para_mostrar["_Estado"] = df_para_mostrar[flag_col].map(lambda x: "✅ Gestionado" if x else "")
+        # Para mejorar legibilidad, movemos _Estado justo después del id_col si existe
+        cols = list(df_para_mostrar.columns)
+        if "_Estado" in cols and id_col in cols:
+            cols.remove("_Estado")
+            cols.remove(id_col)
+            new_cols = [id_col, "_Estado"] + cols
+            df_para_mostrar = df_para_mostrar[new_cols]
+
+        # Mostrar usando st.dataframe (Styler a veces no se renderiza en todas las versiones)
+        st.dataframe(df_para_mostrar, use_container_width=True, hide_index=True)
     else:
         st.dataframe(df_filtrado, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+
+    # ===== Opciones para exportar/guardar cambios =====
+    col_down1, col_down2, col_action = st.columns([1,1,2])
+
+    with col_down1:
+        csv = st.session_state[ss_key].to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "📥 Descargar CSV",
+            data=csv,
+            file_name="avisos_gestionados.csv",
+            mime="text/csv"
+        )
+
+    with col_down2:
+        buffer = BytesIO()
+        with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+            st.session_state[ss_key].to_excel(writer, index=False, sheet_name="Avisos")
+        buffer.seek(0)
+        st.download_button(
+            "📥 Descargar XLSX",
+            data=buffer,
+            file_name="avisos_gestionados.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    with col_action:
+        if st.button("🔁 Resetear flags (poner todos False)"):
+            st.session_state[ss_key][flag_col] = False
+            st.experimental_rerun()
 
     st.markdown("---")
 
