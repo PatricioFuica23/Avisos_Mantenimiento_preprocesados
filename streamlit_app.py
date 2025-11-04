@@ -232,3 +232,4 @@ with mid:
         st.write(f"**Registros mostrados para Grupo planif. = `{seleccion_grupo}`:** {total}")
     else:
         st.write(f"**Registros mostrados (según filtros):** {total}")
+    number = st.slider("Criticidad del modelo", "Criticidad_1a100")
