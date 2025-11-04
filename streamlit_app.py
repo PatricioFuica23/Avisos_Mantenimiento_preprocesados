@@ -140,17 +140,17 @@ with st.sidebar:
 
     # Prioridad (multi)
     if col_prior in df.columns:
-        prioridades_opts = sorted([str(x) for x in df[col_prior].dropna().unique()])
-        sel_prioridades = st.multiselect("Prioridad (puedes seleccionar varias)", prioridades_opts, default=[])
+        prioridades_opts = ["(Todos)"] + sorted([str(x) for x in df[col_prior].dropna().unique()])
+        sel_prioridades = st.multiselect("Prioridad", prioridades_opts, default=[])
     else:
-        sel_prioridades = []
+        sel_prioridades = "(Todos)"
 
     # Indicador ABC (multi)
     if col_abc in df.columns:
-        abc_opts = sorted([str(x) for x in df[col_abc].dropna().unique()])
-        sel_abc = st.multiselect("Indicador ABC (puedes seleccionar varias)", abc_opts, default=[])
+        abc_opts = ["(Todos)"] + sorted([str(x) for x in df[col_abc].dropna().unique()])
+        sel_abc = st.multiselect("Indicador ABC", abc_opts, default=[])
     else:
-        sel_abc = []
+        sel_abc = "(Todos)"
 
     # DEBUG opcional (descomenta si necesitas inspeccionar tipos/valores)
     # st.write("DEBUG sel_prioridades:", type(sel_prioridades), sel_prioridades)
@@ -233,7 +233,6 @@ with mid:
         # Aplicar estilo solamente a la columna de criticidad
         styled = df_filtrado.style.format(precision=0, subset=[col_crit])
         styled = styled.apply(lambda col: estilos_criticidad(col, 1, 100), subset=[col_crit])
-        # Streamlit soporta mostrar pandas Styler con st.dataframe / st.write en versiones recientes
         st.dataframe(styled, use_container_width=True, hide_index=True)
     else:
         st.dataframe(df_filtrado, use_container_width=True, hide_index=True)
