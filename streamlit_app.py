@@ -141,16 +141,20 @@ with st.sidebar:
     # Prioridad (multi)
     if col_prior in df.columns:
         prioridades_opts = sorted([str(x) for x in df[col_prior].dropna().unique()])
-        sel_prioridades = st.selectbox("Prioridad", prioridades_opts, index=0)
+        sel_prioridades = st.multiselect("Prioridad (puedes seleccionar varias)", prioridades_opts, default=[])
     else:
-        sel_prioridades = "(Todos)"
+        sel_prioridades = []
 
     # Indicador ABC (multi)
     if col_abc in df.columns:
         abc_opts = sorted([str(x) for x in df[col_abc].dropna().unique()])
-        sel_abc = st.selectbox("Indicador ABC", abc_opts, index=0)
+        sel_abc = st.multiselect("Indicador ABC (puedes seleccionar varias)", abc_opts, default=[])
     else:
-        sel_abc = "(Todos)"
+        sel_abc = []
+
+    # DEBUG opcional (descomenta si necesitas inspeccionar tipos/valores)
+    # st.write("DEBUG sel_prioridades:", type(sel_prioridades), sel_prioridades)
+    # st.write("DEBUG sel_abc:", type(sel_abc), sel_abc)
 
 # ---- Aplicar filtros ----
 df_filtrado = df.copy()
@@ -158,10 +162,17 @@ df_filtrado = df.copy()
 if col_grupo in df_filtrado.columns and seleccion_grupo != "(Todos)":
     df_filtrado = df_filtrado[df_filtrado[col_grupo].astype(str) == seleccion_grupo]
 
-if sel_prioridades is not None and len(sel_prioridades) > 0:
+# Asegurar que sel_prioridades y sel_abc sean iterables de escalares
+# (ya lo son por multiselect, pero lo hacemos defensivo por si cambias UI)
+if isinstance(sel_prioridades, (str, int, float)):
+    sel_prioridades = [sel_prioridades]
+if isinstance(sel_abc, (str, int, float)):
+    sel_abc = [sel_abc]
+
+if sel_prioridades:  # lista no vacía -> aplicamos filtro
     df_filtrado = df_filtrado[df_filtrado[col_prior].astype(str).isin(sel_prioridades)]
 
-if sel_abc is not None and len(sel_abc) > 0:
+if sel_abc:  # lista no vacía -> aplicamos filtro
     df_filtrado = df_filtrado[df_filtrado[col_abc].astype(str).isin(sel_abc)]
 
 # =========================
@@ -219,8 +230,10 @@ with mid:
     st.caption("Vista de avisos con filtros (Grupo planif., Prioridad, Indicador ABC) y gradiente de criticidad (1→verde, 100→rojo).")
 
     if col_crit in df_filtrado.columns:
+        # Aplicar estilo solamente a la columna de criticidad
         styled = df_filtrado.style.format(precision=0, subset=[col_crit])
         styled = styled.apply(lambda col: estilos_criticidad(col, 1, 100), subset=[col_crit])
+        # Streamlit soporta mostrar pandas Styler con st.dataframe / st.write en versiones recientes
         st.dataframe(styled, use_container_width=True, hide_index=True)
     else:
         st.dataframe(df_filtrado, use_container_width=True, hide_index=True)
@@ -232,4 +245,3 @@ with mid:
         st.write(f"**Registros mostrados para Grupo planif. = `{seleccion_grupo}`:** {total}")
     else:
         st.write(f"**Registros mostrados (según filtros):** {total}")
-        
