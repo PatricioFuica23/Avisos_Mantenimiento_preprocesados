@@ -60,16 +60,12 @@ def seleccionar_columnas(df: pd.DataFrame) -> pd.DataFrame:
 
 # ---- Generador de color (verde→amarillo→rojo) sin matplotlib ----
 def color_hex_verde_amarillo_rojo(v: float, vmin: float = 1, vmax: float = 100) -> str:
-    """
-    Interpola un color entre verde (#2ecc71), amarillo (#f1c40f) y rojo (#e74c3c)
-    según el valor v en [vmin, vmax]. Devuelve HEX "#RRGGBB".
-    """
     verde = (0x2e, 0xcc, 0x71)
     amarillo = (0xf1, 0xc4, 0x0f)
     rojo = (0xe7, 0x4c, 0x3c)
 
     if pd.isna(v):
-        return "#ffffff"  # blanco para NaN
+        return "#ffffff"
     v = float(v)
     if vmax == vmin:
         t = 0.0
@@ -77,7 +73,6 @@ def color_hex_verde_amarillo_rojo(v: float, vmin: float = 1, vmax: float = 100) 
         t = (v - vmin) / (vmax - vmin)
     t = max(0.0, min(1.0, t))
 
-    # Dos tramos: 0..0.5 (verde→amarillo), 0.5..1 (amarillo→rojo)
     if t <= 0.5:
         a, b = verde, amarillo
         u = t / 0.5
@@ -91,7 +86,6 @@ def color_hex_verde_amarillo_rojo(v: float, vmin: float = 1, vmax: float = 100) 
     return f"#{r:02x}{g:02x}{b_:02x}"
 
 def estilos_criticidad(col: pd.Series, vmin: float = 1, vmax: float = 100):
-    """Devuelve estilos CSS por celda para la columna de criticidad."""
     return [f"background-color: {color_hex_verde_amarillo_rojo(val, vmin, vmax)}" for val in col]
 
 # =========================
@@ -159,11 +153,9 @@ df_filtrado = df.copy()
 if col_grupo in df_filtrado.columns and seleccion_grupo != "(Todos)":
     df_filtrado = df_filtrado[df_filtrado[col_grupo].astype(str) == seleccion_grupo]
 
-# Prioridad (comparación simple porque es un único valor)
 if col_prior in df_filtrado.columns and sel_prioridades != "(Todos)":
     df_filtrado = df_filtrado[df_filtrado[col_prior].astype(str) == sel_prioridades]
 
-# Indicador ABC (comparación simple porque es un único valor)
 if col_abc in df_filtrado.columns and sel_abc != "(Todos)":
     df_filtrado = df_filtrado[df_filtrado[col_abc].astype(str) == sel_abc]
 
@@ -199,7 +191,6 @@ with mid:
     # ===== Gráfico: X=Criticidad (1..100), Y=frecuencia =====
     if col_crit in df_filtrado.columns and not df_filtrado.empty:
         crit = pd.to_numeric(df_filtrado[col_crit], errors="coerce").dropna()
-        # Si quieres agrupar por enteros estrictos:
         crit = crit.round().astype(int)
         crit = crit.clip(lower=1, upper=100)
 
@@ -218,76 +209,95 @@ with mid:
 
     st.markdown("---")
 
-    # ===== Tabla editable con casilla "Gestionado" y gradiente de criticidad =====
+    # ===== Tabla editable alternativa (sin experimental_data_editor) =====
     st.caption("Vista de avisos con filtros. Marca 'Gestionado' para indicar que un ticket ya fue gestionado.")
 
     # Identificador para mapear estados; usamos "Aviso" si existe, si no creamos "Aviso_id"
     id_col = "Aviso"
     if id_col not in df_filtrado.columns:
-        # crear id alternativo único
         id_col = "Aviso_id"
         df_filtrado = df_filtrado.reset_index(drop=True).copy()
         df_filtrado[id_col] = df_filtrado.index.astype(str)
 
     flag_col = "Gestionado"
 
-    # Si no existe columna de flag, la creamos (False por defecto)
+    # Creamos columna flag si no existe
     if flag_col not in df_filtrado.columns:
         df_filtrado[flag_col] = False
-
-    # Normalizar tipos (booleana)
     df_filtrado[flag_col] = df_filtrado[flag_col].astype(bool)
 
-    # Guardar copia en session_state para persistencia dentro de la sesión
-    ss_key = "avisos_gestionados_df"
-    # Si el origen cambió (por ejemplo se subió otro archivo o se cambiaron filtros), actualizar session_state
-    # Para detectar cambios básicos usamos la longitud y la lista de ids visibles
+    # Inicializar session_state map (id -> bool) para persistencia entre reruns
+    map_key = "gestionados_map"
     ids_visibles = tuple(df_filtrado[id_col].astype(str).tolist())
-    if ss_key not in st.session_state or st.session_state.get(f"{ss_key}_ids") != ids_visibles:
-        st.session_state[ss_key] = df_filtrado.reset_index(drop=True).copy()
-        st.session_state[f"{ss_key}_ids"] = ids_visibles
-
-    # Mostrar editor experimental (permite editar checkboxes)
-    # Nota: experimental_data_editor puede ser diferente según versión; si no está disponible, dime y lo adapto.
-    editable_df = st.experimental_data_editor(
-        st.session_state[ss_key],
-        num_rows="dynamic",
-        use_container_width=True,
-        key="editor_avisos"
-    )
-
-    # Actualizamos session_state con las modificaciones
-    st.session_state[ss_key] = editable_df.copy()
-
-    # Reflejar los cambios en df_filtrado para que el resto del UI use el estado actualizado
-    if id_col in editable_df.columns:
-        editar = editable_df[[id_col, flag_col]].copy()
-        editar[id_col] = editar[id_col].astype(str)
-        df_filtrado = df_filtrado.copy()
-        df_filtrado[id_col] = df_filtrado[id_col].astype(str)
-
-        mapa_flag = dict(zip(editar[id_col], editar[flag_col]))
-        df_filtrado[flag_col] = df_filtrado[id_col].map(mapa_flag).fillna(False).astype(bool)
+    if map_key not in st.session_state:
+        st.session_state[map_key] = {i: False for i in ids_visibles}
     else:
-        st.warning(f"No se encontró la columna `{id_col}` para mapear estados. Revisa el identificador único.")
+        # Si cambió la lista de ids visibles (filtros o archivo nuevo), sincronizamos (mantener valores previos si existen)
+        prev = st.session_state[map_key]
+        new_map = {i: prev.get(i, False) for i in ids_visibles}
+        st.session_state[map_key] = new_map
 
-    # ===== Mostrar la tabla con estilo (criticidad) pero usando el dataframe actualizado =====
-    if col_crit in df_filtrado.columns:
-        # Añadimos una indicación visual para los gestionados (columna auxiliar)
-        df_para_mostrar = df_filtrado.copy()
-        df_para_mostrar["_Estado"] = df_para_mostrar[flag_col].map(lambda x: "✅ Gestionado" if x else "")
-        # Para mejorar legibilidad, movemos _Estado justo después del id_col si existe
-        cols = list(df_para_mostrar.columns)
-        if "_Estado" in cols and id_col in cols:
-            cols.remove("_Estado")
-            cols.remove(id_col)
-            new_cols = [id_col, "_Estado"] + cols
-            df_para_mostrar = df_para_mostrar[new_cols]
+    # Reflejar el mapa en df_filtrado
+    df_filtrado[flag_col] = df_filtrado[id_col].astype(str).map(st.session_state[map_key]).fillna(False).astype(bool)
 
-        # Mostrar usando st.dataframe (Styler a veces no se renderiza en todas las versiones)
-        st.dataframe(df_para_mostrar, use_container_width=True, hide_index=True)
+    # Añadir columna visual _Estado
+    df_para_mostrar = df_filtrado.copy()
+    df_para_mostrar["_Estado"] = df_para_mostrar[flag_col].map(lambda x: "✅ Gestionado" if x else "")
+
+    # Reorder to show id and estado early if exist
+    cols = list(df_para_mostrar.columns)
+    if id_col in cols:
+        cols.remove(id_col)
+        cols = [id_col] + cols
+    if "_Estado" in cols:
+        cols.remove("_Estado")
+        cols = cols[:1] + ["_Estado"] + cols[1:]
+    df_para_mostrar = df_para_mostrar[cols]
+
+    # Mostrar tabla (no editable aquí)
+    st.dataframe(df_para_mostrar, use_container_width=True, hide_index=True)
+
+    st.markdown("### ✏️ Editar estados (paginado)")
+    st.info("Usa el panel paginado para marcar/desmarcar varios avisos. Los cambios se guardan en la sesión.")
+
+    # Parámetros de paginación
+    page_size = st.number_input("Filas por página", min_value=10, max_value=200, value=25, step=5)
+    page = st.number_input("Página", min_value=1, value=1, step=1)
+    page = int(page)
+    page_size = int(page_size)
+
+    start = (page - 1) * page_size
+    end = start + page_size
+    sub = df_filtrado.reset_index(drop=True).iloc[start:end]
+
+    if sub.empty:
+        st.warning("No hay filas en esta página (ajusta la página o filtros).")
     else:
-        st.dataframe(df_filtrado, use_container_width=True, hide_index=True)
+        st.write(f"Mostrando filas {start+1} → {min(end, len(df_filtrado))} de {len(df_filtrado)}")
+        # Mostrar filas con checkboxes
+        for idx, row in sub.iterrows():
+            rid = str(row[id_col])
+            cols_row = st.columns([1, 3, 2, 1])  # Ajusta anchos: checkbox, descripción, prioridad/abc, criticidad
+            checked_key = f"chk_{rid}"
+            # Crear checkbox con estado actual
+            current = st.session_state[map_key].get(rid, False)
+            new_val = cols_row[0].checkbox("", value=current, key=checked_key)
+            # Mostrar información relevante
+            descr = str(row.get("Descripción", ""))[:120]
+            cols_row[1].write(f"**{rid}** — {descr}")
+            p = row.get(col_prior, "")
+            abc = row.get(col_abc, "")
+            cols_row[2].write(f"Prioridad: `{p}`  \nABC: `{abc}`")
+            crit = row.get(col_crit, "")
+            cols_row[3].write(f"{crit}")
+
+            # Si cambió, actualizar el mapa
+            if new_val != current:
+                st.session_state[map_key][rid] = new_val
+                # también reflejar en df_para_mostrar (visible en la tabla superior)
+                # actualizamos la variable local para que al final refleje los cambios en la descarga
+                df_para_mostrar.loc[df_para_mostrar[id_col].astype(str) == rid, "_Estado"] = "✅ Gestionado" if new_val else ""
+                df_filtrado.loc[df_filtrado[id_col].astype(str) == rid, flag_col] = new_val
 
     st.markdown("---")
 
@@ -295,7 +305,9 @@ with mid:
     col_down1, col_down2, col_action = st.columns([1,1,2])
 
     with col_down1:
-        csv = st.session_state[ss_key].to_csv(index=False).encode("utf-8")
+        # Construir dataframe resultante a descargar (estado aplicado)
+        result_df = df_filtrado.copy()
+        csv = result_df.to_csv(index=False).encode("utf-8")
         st.download_button(
             "📥 Descargar CSV",
             data=csv,
@@ -306,7 +318,7 @@ with mid:
     with col_down2:
         buffer = BytesIO()
         with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-            st.session_state[ss_key].to_excel(writer, index=False, sheet_name="Avisos")
+            result_df.to_excel(writer, index=False, sheet_name="Avisos")
         buffer.seek(0)
         st.download_button(
             "📥 Descargar XLSX",
@@ -317,7 +329,7 @@ with mid:
 
     with col_action:
         if st.button("🔁 Resetear flags (poner todos False)"):
-            st.session_state[ss_key][flag_col] = False
+            st.session_state[map_key] = {i: False for i in st.session_state[map_key].keys()}
             st.experimental_rerun()
 
     st.markdown("---")
