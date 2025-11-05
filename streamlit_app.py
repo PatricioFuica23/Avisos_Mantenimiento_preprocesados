@@ -212,13 +212,6 @@ with mid:
     # ===== Tabla editable alternativa (sin experimental_data_editor) =====
     st.caption("Vista de avisos con filtros. Marca 'Gestionado' para indicar que un ticket ya fue gestionado.")
 
-    # Identificador para mapear estados; usamos "Aviso" si existe, si no creamos "Aviso_id"
-    id_col = "Aviso"
-    if id_col not in df_filtrado.columns:
-        id_col = "Aviso_id"
-        df_filtrado = df_filtrado.reset_index(drop=True).copy()
-        df_filtrado[id_col] = df_filtrado.index.astype(str)
-
     flag_col = "Gestionado"
 
     # Creamos columna flag si no existe
