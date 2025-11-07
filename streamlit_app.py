@@ -17,8 +17,7 @@ st.title("📊 Clasificación Automática de Avisos SAP PM")
 st.caption("Prototipo funcional con sistema de gestión y registro de tickets por aviso.")
 
 st.markdown("""
-💡 **Objetivo:** Permitir que los trabajadores visualicen los avisos, conozcan la criticidad calculada por el modelo y marquen aquellos que ya han sido gestionados, 
-registrando un ticket de seguimiento directamente en la tabla.
+💡 **Objetivo:** Permitir que los trabajadores visualicen los avisos, conozcan la criticidad calculada por el modelo y marquen aquellos que ya han sido gestionados, para mantener un control del backlog.
 """)
 
 st.divider()
