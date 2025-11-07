@@ -13,7 +13,7 @@ from io import BytesIO
 st.set_page_config(page_title="Clasificación de Avisos SAP PM", page_icon="🧠", layout="wide")
 
 st.title("📊 Clasificación Automática de Avisos SAP PM")
-st.caption("Prototipo funcional de modelo automático de avisos de mantenimiento (Random Forest v5)")
+st.caption("Prototipo funcional de modelo automático de avisos de mantenimiento")
 
 st.markdown("""
 💡 **Objetivo:** Visualizar los avisos clasificados por el modelo, revisar su criticidad, 
