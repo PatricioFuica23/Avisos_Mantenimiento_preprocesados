@@ -74,8 +74,8 @@ df = df_raw[cols_relevantes].copy()
 # --- LIMPIEZA Y FORMATEO ---
 if "Fecha de aviso" in df.columns:
     df["Fecha de aviso"] = pd.to_datetime(df["Fecha de aviso"], errors="coerce").dt.date
-if "Criticidad_1a100" in df.columns:
-    df["Criticidad_1a100"] = pd.to_numeric(df["Criticidad_1a100"], errors="coerce")
+if "criticidad_final" in df.columns:
+    df["criticidad_final"] = pd.to_numeric(df["criticidad_final"], errors="coerce")
 
 # --- NUEVAS COLUMNAS (Gestionado y Ticket) ---
 if "Gestionado" not in df.columns:
@@ -113,7 +113,7 @@ if "Indicador ABC" in df_filtrado.columns and abc != "(Todos)":
 st.subheader("📊 Resumen general")
 col1, col2, col3 = st.columns(3)
 col1.metric("Total avisos", len(df_filtrado))
-col2.metric("Criticidad promedio", f"{df_filtrado['Criticidad_1a100'].mean():.1f}" if "Criticidad_1a100" in df_filtrado else "—")
+col2.metric("Criticidad promedio", f"{df_filtrado['criticidad_final'].mean():.1f}" if "criticidad_final" in df_filtrado else "—")
 col3.metric("% Gestionados", f"{(df_filtrado['Gestionado'].mean() * 100):.1f}%")
 
 st.divider()
