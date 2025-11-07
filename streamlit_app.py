@@ -1,6 +1,6 @@
 # ==============================================
 # 📊 APP STREAMLIT - CLASIFICACIÓN DE AVISOS CMPC
-# Versión mejorada para presentación del proyecto
+# Versión con sistema de tickets gestionados
 # ==============================================
 
 from __future__ import annotations
@@ -8,17 +8,17 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from io import BytesIO
+from datetime import datetime
 
 # --- CONFIGURACIÓN INICIAL ---
 st.set_page_config(page_title="Clasificación de Avisos SAP PM", page_icon="🧠", layout="wide")
 
-# --- TÍTULO Y DESCRIPCIÓN ---
 st.title("📊 Clasificación Automática de Avisos SAP PM")
-st.caption("Prototipo funcional desarrollado para evaluar el uso de herramientas analíticas en el área de planificación de mantenimiento.")
+st.caption("Prototipo funcional con registro de gestión de avisos y generación de tickets de seguimiento.")
 
 st.markdown("""
-💡 **Objetivo:** Esta aplicación permite visualizar y validar las predicciones del modelo de clasificación automática de avisos, 
-explorando su criticidad, clase de orden, clase de actividad PM y puesto responsable.
+💡 **Objetivo:** Visualizar las recomendaciones del modelo, filtrar por criticidad o grupo planificador,
+y registrar qué avisos fueron efectivamente gestionados por los trabajadores.
 """)
 
 st.divider()
@@ -51,7 +51,7 @@ def estilos_criticidad(col):
 # --- SIDEBAR ---
 with st.sidebar:
     st.header("⚙️ Controles")
-    st.write("Sube el archivo Excel con las predicciones del modelo (por ejemplo, `ranking_nb.xlsx`).")
+    st.write("Sube el archivo Excel con las predicciones del modelo (`ranking_nb.xlsx`).")
     uploaded = st.file_uploader("📂 Cargar archivo", type=["xlsx"])
 
     st.divider()
@@ -123,42 +123,62 @@ else:
 
 st.divider()
 
-# --- TABLA DE DATOS ---
-st.subheader("📋 Avisos y recomendaciones del modelo")
-styled_df = df_filtrado.style.apply(estilos_criticidad, subset=["Criticidad_1a100"])
-st.dataframe(styled_df, use_container_width=True, hide_index=True)
+# --- SISTEMA DE TICKETS ---
+st.subheader("🎫 Gestión de Avisos (crear tickets)")
+st.markdown("Marca los avisos que han sido gestionados y genera tickets de seguimiento.")
+
+# Inicializar estructura en session_state
+if "tickets" not in st.session_state:
+    st.session_state["tickets"] = []
+
+for idx, row in df_filtrado.iterrows():
+    aviso = row.get("Aviso", "")
+    descripcion = str(row.get("Descripción", ""))[:100]
+    criticidad = row.get("Criticidad_1a100", "")
+    grupo_p = row.get("Grupo planif.", "")
+    col1, col2, col3, col4 = st.columns([1, 3, 1, 1])
+    with col1:
+        marcado = st.checkbox(f"{aviso}", key=f"chk_{aviso}")
+    with col2:
+        st.write(f"**{descripcion}**")
+    with col3:
+        st.write(f"🔧 {grupo_p}")
+    with col4:
+        st.write(f"🔥 {criticidad}")
+
+    if marcado:
+        nombre = st.text_input(f"👷 Nombre del trabajador para aviso {aviso}:", key=f"trab_{aviso}")
+        comentario = st.text_input(f"💬 Comentario:", key=f"com_{aviso}")
+        if st.button(f"➕ Crear ticket #{aviso}", key=f"btn_{aviso}"):
+            ticket = {
+                "Aviso": aviso,
+                "Fecha gestión": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "Trabajador": nombre,
+                "Comentario": comentario,
+                "Criticidad": criticidad,
+                "Grupo planif.": grupo_p
+            }
+            st.session_state["tickets"].append(ticket)
+            st.success(f"🎫 Ticket para aviso {aviso} registrado correctamente.")
 
 st.divider()
 
-# --- FEEDBACK DE USUARIO ---
-st.subheader("🗣️ Retroalimentación del trabajador")
-st.markdown("""
-Por favor indica si consideras que las recomendaciones del modelo reflejan correctamente la prioridad de atención de los avisos:
-""")
-
-col_fb1, col_fb2 = st.columns([2, 3])
-opinion = col_fb1.radio(
-    "Nivel de acuerdo con las decisiones del modelo:",
-    ["Totalmente de acuerdo", "Parcialmente de acuerdo", "En desacuerdo"],
-    index=1
-)
-comentario = col_fb2.text_area("Comentarios adicionales:", "")
-
-if st.button("💾 Enviar opinión"):
-    st.success("✅ Opinión registrada. ¡Gracias por tu retroalimentación!")
-    st.session_state["ultima_opinion"] = (opinion, comentario)
+# --- DESCARGA DE TICKETS ---
+st.subheader("📥 Descargar tickets gestionados")
+if st.session_state["tickets"]:
+    df_tickets = pd.DataFrame(st.session_state["tickets"])
+    buffer = BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        df_tickets.to_excel(writer, index=False, sheet_name="Tickets")
+    buffer.seek(0)
+    st.download_button(
+        "📥 Descargar tickets en Excel",
+        data=buffer,
+        file_name="tickets_gestionados.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+else:
+    st.info("No hay tickets registrados todavía.")
 
 st.divider()
-
-# --- EXPORTACIÓN ---
-st.subheader("💾 Descargar datos filtrados")
-buffer = BytesIO()
-with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-    df_filtrado.to_excel(writer, index=False, sheet_name="Avisos")
-buffer.seek(0)
-st.download_button(
-    "📥 Descargar Excel con avisos filtrados",
-    data=buffer,
-    file_name="avisos_filtrados.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
+st.caption("Versión con registro de tickets — CMPC Cordillera © 2025")
