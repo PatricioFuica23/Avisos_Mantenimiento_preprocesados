@@ -51,10 +51,6 @@ with st.sidebar:
     st.caption("Usa el archivo generado por el modelo, por ejemplo `ranking_nb.xlsx`.")
 
     st.divider()
-    st.subheader("📈 Desempeño del modelo")
-    st.metric("Accuracy", "0.902")
-    st.metric("MAE", "29.7")
-    st.metric("R²", "-0.96")
 
 # --- CARGA DE DATOS ---
 try:
