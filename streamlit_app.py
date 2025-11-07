@@ -1,6 +1,6 @@
 # ==============================================
 # 📊 APP STREAMLIT - CLASIFICACIÓN DE AVISOS CMPC
-# Versión con sistema de tickets gestionados
+# Versión con DataFrame editable, gestión y tickets
 # ==============================================
 
 from __future__ import annotations
@@ -10,15 +10,15 @@ import numpy as np
 from io import BytesIO
 from datetime import datetime
 
-# --- CONFIGURACIÓN INICIAL ---
+# --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Clasificación de Avisos SAP PM", page_icon="🧠", layout="wide")
 
 st.title("📊 Clasificación Automática de Avisos SAP PM")
-st.caption("Prototipo funcional con registro de gestión de avisos y generación de tickets de seguimiento.")
+st.caption("Prototipo funcional con sistema de gestión y registro de tickets por aviso.")
 
 st.markdown("""
-💡 **Objetivo:** Visualizar las recomendaciones del modelo, filtrar por criticidad o grupo planificador,
-y registrar qué avisos fueron efectivamente gestionados por los trabajadores.
+💡 **Objetivo:** Permitir que los trabajadores visualicen los avisos, conozcan la criticidad calculada por el modelo y marquen aquellos que ya han sido gestionados, 
+registrando un ticket de seguimiento directamente en la tabla.
 """)
 
 st.divider()
@@ -45,21 +45,17 @@ def color_hex_verde_amarillo_rojo(v: float, vmin: float = 1, vmax: float = 100) 
     b_ = int(a[2] + (b[2] - a[2]) * u)
     return f"#{r:02x}{g:02x}{b_:02x}"
 
-def estilos_criticidad(col):
-    return [f"background-color: {color_hex_verde_amarillo_rojo(v)}" for v in col]
-
 # --- SIDEBAR ---
 with st.sidebar:
-    st.header("⚙️ Controles")
-    st.write("Sube el archivo Excel con las predicciones del modelo (`ranking_nb.xlsx`).")
-    uploaded = st.file_uploader("📂 Cargar archivo", type=["xlsx"])
+    st.header("⚙️ Configuración de la aplicación")
+    uploaded = st.file_uploader("📂 Cargar archivo de predicciones", type=["xlsx"])
+    st.caption("Usa el archivo generado por el modelo, por ejemplo `ranking_nb.xlsx`.")
 
     st.divider()
     st.subheader("📈 Desempeño del modelo")
-    st.metric("Accuracy (Clasificación)", "0.902")
-    st.metric("MAE (Criticidad)", "29.7")
+    st.metric("Accuracy", "0.902")
+    st.metric("MAE", "29.7")
     st.metric("R²", "-0.96")
-    st.caption("Valores obtenidos en la última versión del modelo (V5 Random Forest).")
 
 # --- CARGA DE DATOS ---
 try:
@@ -68,10 +64,10 @@ try:
     else:
         df_raw = cargar_datos("ranking_nb.xlsx")
 except FileNotFoundError:
-    st.error("❌ No se encontró el archivo `ranking_nb.xlsx`. Súbelo desde la barra lateral.")
+    st.error("❌ No se encontró `ranking_nb.xlsx`. Súbelo desde la barra lateral.")
     st.stop()
 
-# --- SELECCIÓN Y PREPROCESAMIENTO ---
+# --- SELECCIÓN DE COLUMNAS RELEVANTES ---
 cols_relevantes = [
     "Aviso", "Fecha de aviso", "Descripción", "Ubicac.técnica",
     "Indicador ABC", "Grupo planif.", "Clase de aviso", "Denominación",
@@ -80,105 +76,98 @@ cols_relevantes = [
 ]
 df = df_raw[[c for c in cols_relevantes if c in df_raw.columns]].copy()
 
+# --- LIMPIEZA Y FORMATEO ---
 if "Fecha de aviso" in df.columns:
     df["Fecha de aviso"] = pd.to_datetime(df["Fecha de aviso"], errors="coerce").dt.date
 if "Criticidad_1a100" in df.columns:
     df["Criticidad_1a100"] = pd.to_numeric(df["Criticidad_1a100"], errors="coerce")
 
+# --- NUEVAS COLUMNAS (Gestionado y Ticket) ---
+if "Gestionado" not in df.columns:
+    df["Gestionado"] = False
+if "Ticket" not in df.columns:
+    df["Ticket"] = ""
+
+# Guardar en sesión (solo la primera vez)
+if "df_data" not in st.session_state:
+    st.session_state["df_data"] = df.copy()
+
+df_session = st.session_state["df_data"]
+
 # --- FILTROS ---
 with st.sidebar:
-    st.subheader("🔍 Filtros")
-    grupo = st.selectbox("Grupo planificador", ["(Todos)"] + sorted(df["Grupo planif."].dropna().unique().tolist()))
-    prioridad = st.selectbox("Prioridad", ["(Todos)"] + sorted(df["Prioridad"].dropna().unique().tolist()))
-    abc = st.selectbox("Indicador ABC", ["(Todos)"] + sorted(df["Indicador ABC"].dropna().unique().tolist()))
+    st.subheader("🔍 Filtros de visualización")
+    grupo = st.selectbox("Grupo planificador", ["(Todos)"] + sorted(df_session["Grupo planif."].dropna().unique().tolist()))
+    prioridad = st.selectbox("Prioridad", ["(Todos)"] + sorted(df_session["Prioridad"].dropna().unique().tolist()))
+    abc = st.selectbox("Indicador ABC", ["(Todos)"] + sorted(df_session["Indicador ABC"].dropna().unique().tolist()))
 
-df_filtrado = df.copy()
+# Aplicar filtros
+df_filtrado = df_session.copy()
 if grupo != "(Todos)": df_filtrado = df_filtrado[df_filtrado["Grupo planif."] == grupo]
 if prioridad != "(Todos)": df_filtrado = df_filtrado[df_filtrado["Prioridad"] == prioridad]
 if abc != "(Todos)": df_filtrado = df_filtrado[df_filtrado["Indicador ABC"] == abc]
 
-# --- MÉTRICAS DE RESUMEN ---
+# --- MÉTRICAS GENERALES ---
 st.subheader("📊 Resumen general")
-c1, c2, c3, c4, c5 = st.columns(5)
-total = len(df_filtrado)
-prom = df_filtrado["Criticidad_1a100"].mean() if "Criticidad_1a100" in df_filtrado else np.nan
-med = df_filtrado["Criticidad_1a100"].median() if "Criticidad_1a100" in df_filtrado else np.nan
-pct_alta = (df_filtrado["Criticidad_1a100"] >= 80).mean() * 100 if "Criticidad_1a100" in df_filtrado else np.nan
-
-c1.metric("Avisos mostrados", f"{total:,}".replace(",", "."))
-c2.metric("Criticidad promedio", f"{prom:.1f}" if not np.isnan(prom) else "—")
-c3.metric("Mediana criticidad", f"{med:.0f}" if not np.isnan(med) else "—")
-c4.metric("% Criticidad ≥ 80", f"{pct_alta:.1f}%" if not np.isnan(pct_alta) else "—")
-c5.metric("Grupos distintos", df_filtrado["Grupo planif."].nunique())
+col1, col2, col3 = st.columns(3)
+col1.metric("Total avisos", len(df_filtrado))
+col2.metric("Criticidad promedio", f"{df_filtrado['Criticidad_1a100'].mean():.1f}")
+col3.metric("% Gestionados", f"{(df_filtrado['Gestionado'].mean() * 100):.1f}%")
 
 st.divider()
 
-# --- GRAFICO DE DISTRIBUCIÓN ---
-if "Criticidad_1a100" in df_filtrado:
-    st.subheader("📈 Distribución de criticidad (1 a 100)")
-    conteo = df_filtrado["Criticidad_1a100"].round().astype(int).value_counts().sort_index()
-    st.bar_chart(conteo)
+# --- TABLA EDITABLE PRINCIPAL ---
+st.subheader("📋 Tabla de avisos (editable)")
+st.caption("Puedes marcar un aviso como gestionado y asignarle un número o comentario de ticket. Los cambios se actualizan automáticamente.")
+
+edited_df = st.data_editor(
+    df_filtrado,
+    num_rows="dynamic",
+    use_container_width=True,
+    hide_index=True,
+    column_config={
+        "Gestionado": st.column_config.CheckboxColumn("Gestionado"),
+        "Ticket": st.column_config.TextColumn("Ticket", help="Número o comentario de ticket")
+    },
+    key="editable_table"
+)
+
+# Guardar cambios en sesión (actualiza toda la base filtrada)
+mask_idx = df_session.index.isin(edited_df.index)
+df_session.loc[mask_idx, "Gestionado"] = edited_df["Gestionado"].values
+df_session.loc[mask_idx, "Ticket"] = edited_df["Ticket"].values
+
+st.session_state["df_data"] = df_session
+
+# --- SELECCIÓN DE VISTA ---
+st.divider()
+st.subheader("👁️ Visualización")
+vista = st.radio(
+    "Selecciona qué avisos visualizar:",
+    ["Todos los avisos", "Sólo gestionados"],
+    horizontal=True
+)
+
+if vista == "Sólo gestionados":
+    df_vista = df_session[df_session["Gestionado"] == True]
 else:
-    st.info("No hay datos de criticidad disponibles para graficar.")
+    df_vista = df_session.copy()
+
+st.dataframe(df_vista, use_container_width=True, hide_index=True)
+
+# --- DESCARGA DE RESULTADOS ---
+st.divider()
+st.subheader("📥 Descargar resultados")
+buffer = BytesIO()
+with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+    df_session.to_excel(writer, index=False, sheet_name="Avisos")
+buffer.seek(0)
+st.download_button(
+    "📥 Descargar Excel actualizado",
+    data=buffer,
+    file_name="avisos_actualizados.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
 
 st.divider()
-
-# --- SISTEMA DE TICKETS ---
-st.subheader("🎫 Gestión de Avisos (crear tickets)")
-st.markdown("Marca los avisos que han sido gestionados y genera tickets de seguimiento.")
-
-# Inicializar estructura en session_state
-if "tickets" not in st.session_state:
-    st.session_state["tickets"] = []
-
-for idx, row in df_filtrado.iterrows():
-    aviso = row.get("Aviso", "")
-    descripcion = str(row.get("Descripción", ""))[:100]
-    criticidad = row.get("Criticidad_1a100", "")
-    grupo_p = row.get("Grupo planif.", "")
-    col1, col2, col3, col4 = st.columns([1, 3, 1, 1])
-    with col1:
-        marcado = st.checkbox(f"{aviso}", key=f"chk_{aviso}")
-    with col2:
-        st.write(f"**{descripcion}**")
-    with col3:
-        st.write(f"🔧 {grupo_p}")
-    with col4:
-        st.write(f"🔥 {criticidad}")
-
-    if marcado:
-        nombre = st.text_input(f"👷 Nombre del trabajador para aviso {aviso}:", key=f"trab_{aviso}")
-        comentario = st.text_input(f"💬 Comentario:", key=f"com_{aviso}")
-        if st.button(f"➕ Crear ticket #{aviso}", key=f"btn_{aviso}"):
-            ticket = {
-                "Aviso": aviso,
-                "Fecha gestión": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "Trabajador": nombre,
-                "Comentario": comentario,
-                "Criticidad": criticidad,
-                "Grupo planif.": grupo_p
-            }
-            st.session_state["tickets"].append(ticket)
-            st.success(f"🎫 Ticket para aviso {aviso} registrado correctamente.")
-
-st.divider()
-
-# --- DESCARGA DE TICKETS ---
-st.subheader("📥 Descargar tickets gestionados")
-if st.session_state["tickets"]:
-    df_tickets = pd.DataFrame(st.session_state["tickets"])
-    buffer = BytesIO()
-    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        df_tickets.to_excel(writer, index=False, sheet_name="Tickets")
-    buffer.seek(0)
-    st.download_button(
-        "📥 Descargar tickets en Excel",
-        data=buffer,
-        file_name="tickets_gestionados.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-else:
-    st.info("No hay tickets registrados todavía.")
-
-st.divider()
-st.caption("Versión con registro de tickets — CMPC Cordillera © 2025")
+st.caption("Versión interactiva con control de gestión y tickets — CMPC Cordillera © 2025")
