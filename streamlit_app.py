@@ -176,9 +176,9 @@ st.caption("Versión interactiva con control de gestión y tickets — CMPC Cord
 st.divider()
 st.subheader("📈 Distribución de criticidad (1 → 100)")
 
-if "Criticidad_1a100" in df_filtrado.columns and not df_filtrado.empty:
+if "criticidad_final" in df_filtrado.columns and not df_filtrado.empty:
     # Convertimos a números válidos y redondeamos
-    crit = pd.to_numeric(df_filtrado["Criticidad_1a100"], errors="coerce").dropna()
+    crit = pd.to_numeric(df_filtrado["criticidad_final"], errors="coerce").dropna()
     crit = crit.clip(lower=1, upper=100).round().astype(int)
 
     # Contamos frecuencia de cada nivel de criticidad
