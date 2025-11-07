@@ -95,10 +95,12 @@ with st.sidebar:
     grupo_opts = ["(Todos)"] + sorted(df_session["Grupo planif."].dropna().unique().astype(str).tolist()) if "Grupo planif." in df_session.columns else ["(Todos)"]
     prioridad_opts = ["(Todos)"] + sorted(df_session["Prioridad"].dropna().unique().astype(str).tolist()) if "Prioridad" in df_session.columns else ["(Todos)"]
     abc_opts = ["(Todos)"] + sorted(df_session["Indicador ABC"].dropna().unique().astype(str).tolist()) if "Indicador ABC" in df_session.columns else ["(Todos)"]
+    Nivel_criticidad = ["(Todos)"] + sorted(df_session["Nivel criticidad"].dropna().unique().astype(str).tolist()) if "Nivel criticidad" in df_session.columns else ["(Todos)"]
 
     grupo = st.selectbox("Grupo planificador", grupo_opts)
     prioridad = st.selectbox("Prioridad", prioridad_opts)
     abc = st.selectbox("Indicador ABC", abc_opts)
+    Dias_recomendados_por_gestionar = st.selectbox("Nivel criticidad", abc_opts)
 
 # Aplicar filtros
 df_filtrado = df_session.copy()
@@ -108,6 +110,8 @@ if "Prioridad" in df_filtrado.columns and prioridad != "(Todos)":
     df_filtrado = df_filtrado[df_filtrado["Prioridad"].astype(str) == prioridad]
 if "Indicador ABC" in df_filtrado.columns and abc != "(Todos)":
     df_filtrado = df_filtrado[df_filtrado["Indicador ABC"].astype(str) == abc]
+if "Nivel criticidad" in df_filtrado.columns and abc != "(Todos)":
+    df_filtrado = df_filtrado[df_filtrado["Nivel criticidad"].astype(str) == abc]
 
 # --- MÉTRICAS GENERALES ---
 st.subheader("📊 Resumen general")
