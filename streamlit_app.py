@@ -1,6 +1,6 @@
 # ==============================================
 # 📊 APP STREAMLIT - CLASIFICACIÓN DE AVISOS CMPC
-# Versión con DataFrame editable, gestión y tickets
+# Adaptada a 'predicciones_avisos_sin_gestionar_rf_v5.xlsx'
 # ==============================================
 
 from __future__ import annotations
@@ -8,16 +8,16 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from io import BytesIO
-from datetime import datetime
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Clasificación de Avisos SAP PM", page_icon="🧠", layout="wide")
 
 st.title("📊 Clasificación Automática de Avisos SAP PM")
-st.caption("Prototipo funcional de modelo automatico de avisos de mantenimiento")
+st.caption("Prototipo funcional de modelo automático de avisos de mantenimiento (Random Forest v5)")
 
 st.markdown("""
-💡 **Objetivo:** Permitir que los trabajadores visualicen los avisos, conozcan la criticidad calculada por el modelo y marquen aquellos que ya han sido gestionados, para mantener un control del backlog.
+💡 **Objetivo:** Visualizar los avisos clasificados por el modelo, revisar su criticidad, 
+y permitir a los trabajadores marcar cuáles fueron gestionados y asignar un ticket para trazabilidad.
 """)
 
 st.divider()
@@ -29,9 +29,7 @@ def cargar_datos(path: str) -> pd.DataFrame:
     return df
 
 def color_hex_verde_amarillo_rojo(v: float, vmin: float = 1, vmax: float = 100) -> str:
-    verde = (46, 204, 113)
-    amarillo = (241, 196, 15)
-    rojo = (231, 76, 60)
+    verde, amarillo, rojo = (46, 204, 113), (241, 196, 15), (231, 76, 60)
     if pd.isna(v): return "#ffffff"
     t = (float(v) - vmin) / (vmax - vmin)
     t = max(0, min(1, t))
@@ -48,28 +46,30 @@ def color_hex_verde_amarillo_rojo(v: float, vmin: float = 1, vmax: float = 100) 
 with st.sidebar:
     st.header("⚙️ Configuración de la aplicación")
     uploaded = st.file_uploader("📂 Cargar archivo de predicciones", type=["xlsx"])
-    st.caption("Usa el archivo generado por el modelo, por ejemplo `ranking_nb.xlsx`.")
-
-    st.divider()
+    st.caption("Por defecto se usará `predicciones_avisos_sin_gestionar_rf_v5.xlsx` si no se carga otro archivo.")
 
 # --- CARGA DE DATOS ---
 try:
     if uploaded is not None:
         df_raw = cargar_datos(uploaded)
     else:
-        df_raw = cargar_datos("ranking_nb.xlsx")
+        df_raw = cargar_datos("predicciones_avisos_sin_gestionar_rf_v5.xlsx")
 except FileNotFoundError:
-    st.error("❌ No se encontró `ranking_nb.xlsx`. Súbelo desde la barra lateral.")
+    st.error("❌ No se encontró `predicciones_avisos_sin_gestionar_rf_v5.xlsx`. Súbelo desde la barra lateral.")
     st.stop()
 
 # --- SELECCIÓN DE COLUMNAS RELEVANTES ---
-cols_relevantes = [
+# Estas columnas están ajustadas al archivo 'predicciones_avisos_sin_gestionar_rf_v5.xlsx'
+columnas_presentes = df_raw.columns.tolist()
+
+cols_relevantes = [c for c in [
     "Aviso", "Fecha de aviso", "Descripción", "Ubicac.técnica",
     "Indicador ABC", "Grupo planif.", "Clase de aviso", "Denominación",
     "Prioridad", "Criticidad_1a100", "Rec_ClaseOrden@1",
     "Rec_ClaseAct@1", "Rec_Puesto@1"
-]
-df = df_raw[[c for c in cols_relevantes if c in df_raw.columns]].copy()
+] if c in columnas_presentes]
+
+df = df_raw[cols_relevantes].copy()
 
 # --- LIMPIEZA Y FORMATEO ---
 if "Fecha de aviso" in df.columns:
@@ -83,7 +83,7 @@ if "Gestionado" not in df.columns:
 if "Ticket" not in df.columns:
     df["Ticket"] = ""
 
-# Guardar en sesión (solo la primera vez)
+# Guardar en sesión (solo primera vez)
 if "df_data" not in st.session_state:
     st.session_state["df_data"] = df.copy()
 
@@ -92,28 +92,35 @@ df_session = st.session_state["df_data"]
 # --- FILTROS ---
 with st.sidebar:
     st.subheader("🔍 Filtros de visualización")
-    grupo = st.selectbox("Grupo planificador", ["(Todos)"] + sorted(df_session["Grupo planif."].dropna().unique().tolist()))
-    prioridad = st.selectbox("Prioridad", ["(Todos)"] + sorted(df_session["Prioridad"].dropna().unique().tolist()))
-    abc = st.selectbox("Indicador ABC", ["(Todos)"] + sorted(df_session["Indicador ABC"].dropna().unique().tolist()))
+    grupo_opts = ["(Todos)"] + sorted(df_session["Grupo planif."].dropna().unique().astype(str).tolist()) if "Grupo planif." in df_session.columns else ["(Todos)"]
+    prioridad_opts = ["(Todos)"] + sorted(df_session["Prioridad"].dropna().unique().astype(str).tolist()) if "Prioridad" in df_session.columns else ["(Todos)"]
+    abc_opts = ["(Todos)"] + sorted(df_session["Indicador ABC"].dropna().unique().astype(str).tolist()) if "Indicador ABC" in df_session.columns else ["(Todos)"]
+
+    grupo = st.selectbox("Grupo planificador", grupo_opts)
+    prioridad = st.selectbox("Prioridad", prioridad_opts)
+    abc = st.selectbox("Indicador ABC", abc_opts)
 
 # Aplicar filtros
 df_filtrado = df_session.copy()
-if grupo != "(Todos)": df_filtrado = df_filtrado[df_filtrado["Grupo planif."] == grupo]
-if prioridad != "(Todos)": df_filtrado = df_filtrado[df_filtrado["Prioridad"] == prioridad]
-if abc != "(Todos)": df_filtrado = df_filtrado[df_filtrado["Indicador ABC"] == abc]
+if "Grupo planif." in df_filtrado.columns and grupo != "(Todos)":
+    df_filtrado = df_filtrado[df_filtrado["Grupo planif."].astype(str) == grupo]
+if "Prioridad" in df_filtrado.columns and prioridad != "(Todos)":
+    df_filtrado = df_filtrado[df_filtrado["Prioridad"].astype(str) == prioridad]
+if "Indicador ABC" in df_filtrado.columns and abc != "(Todos)":
+    df_filtrado = df_filtrado[df_filtrado["Indicador ABC"].astype(str) == abc]
 
 # --- MÉTRICAS GENERALES ---
 st.subheader("📊 Resumen general")
 col1, col2, col3 = st.columns(3)
 col1.metric("Total avisos", len(df_filtrado))
-col2.metric("Criticidad promedio", f"{df_filtrado['Criticidad_1a100'].mean():.1f}")
+col2.metric("Criticidad promedio", f"{df_filtrado['Criticidad_1a100'].mean():.1f}" if "Criticidad_1a100" in df_filtrado else "—")
 col3.metric("% Gestionados", f"{(df_filtrado['Gestionado'].mean() * 100):.1f}%")
 
 st.divider()
 
 # --- TABLA EDITABLE PRINCIPAL ---
 st.subheader("📋 Tabla de avisos (editable)")
-st.caption("Puedes marcar un aviso como gestionado y asignarle un número o comentario de ticket. Los cambios se actualizan automáticamente.")
+st.caption("Marca los avisos como gestionados y asigna un número o comentario de ticket. Los cambios se actualizan automáticamente.")
 
 edited_df = st.data_editor(
     df_filtrado,
@@ -122,16 +129,15 @@ edited_df = st.data_editor(
     hide_index=True,
     column_config={
         "Gestionado": st.column_config.CheckboxColumn("Gestionado"),
-        "Ticket": st.column_config.TextColumn("Ticket", help="Número o comentario de ticket")
+        "Ticket": st.column_config.TextColumn("Ticket", help="Número o comentario del ticket")
     },
     key="editable_table"
 )
 
-# Guardar cambios en sesión (actualiza toda la base filtrada)
+# Actualizar sesión
 mask_idx = df_session.index.isin(edited_df.index)
 df_session.loc[mask_idx, "Gestionado"] = edited_df["Gestionado"].values
 df_session.loc[mask_idx, "Ticket"] = edited_df["Ticket"].values
-
 st.session_state["df_data"] = df_session
 
 # --- SELECCIÓN DE VISTA ---
