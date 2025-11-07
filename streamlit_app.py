@@ -110,8 +110,8 @@ if "Prioridad" in df_filtrado.columns and prioridad != "(Todos)":
     df_filtrado = df_filtrado[df_filtrado["Prioridad"].astype(str) == prioridad]
 if "Indicador ABC" in df_filtrado.columns and abc != "(Todos)":
     df_filtrado = df_filtrado[df_filtrado["Indicador ABC"].astype(str) == abc]
-if "Nivel criticidad" in df_filtrado.columns and abc != "(Todos)":
-    df_filtrado = df_filtrado[df_filtrado["Nivel criticidad"].astype(str) == abc]
+if "Nivel criticidad" in df_filtrado.columns and Dias_recomendados_por_gestionar != "(Todos)":
+    df_filtrado = df_filtrado[df_filtrado["Nivel criticidad"].astype(str) == Dias_recomendados_por_gestionar]
 
 # --- MÉTRICAS GENERALES ---
 st.subheader("📊 Resumen general")
