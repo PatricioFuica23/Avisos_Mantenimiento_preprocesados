@@ -14,7 +14,7 @@ from datetime import datetime
 st.set_page_config(page_title="Clasificación de Avisos SAP PM", page_icon="🧠", layout="wide")
 
 st.title("📊 Clasificación Automática de Avisos SAP PM")
-st.caption("Prototipo funcional con sistema de gestión y registro de tickets por aviso.")
+st.caption("Prototipo funcional de modelo automatico de avisos de mantenimiento")
 
 st.markdown("""
 💡 **Objetivo:** Permitir que los trabajadores visualicen los avisos, conozcan la criticidad calculada por el modelo y marquen aquellos que ya han sido gestionados, para mantener un control del backlog.
