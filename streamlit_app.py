@@ -63,10 +63,10 @@ except FileNotFoundError:
 columnas_presentes = df_raw.columns.tolist()
 
 cols_relevantes = [c for c in [
-    "Aviso", "Fecha de aviso", "Descripción", "Ubicac.técnica",
-    "Indicador ABC", "Grupo planif.", "Clase de aviso", "Denominación",
-    "Prioridad", "Criticidad_1a100", "Rec_ClaseOrden@1",
-    "Rec_ClaseAct@1", "Rec_Puesto@1"
+    "Aviso", "Fecha de aviso", "Descripción", "Ubicac.técnica", "Indicador ABC", 
+    "Grupo planif.", "Clase de aviso" "Denominación", "Prioridad", "Txt. cód. mot.", 
+    "TextoCódProblem", "criticidad_final", "Clase de orden_pred", "Cl.actividad PM_pred",  
+    "Pto.tbjo.resp._pred", "Nivel criticidad"
 ] if c in columnas_presentes]
 
 df = df_raw[cols_relevantes].copy()
