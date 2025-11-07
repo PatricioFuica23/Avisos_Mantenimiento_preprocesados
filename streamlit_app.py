@@ -172,3 +172,28 @@ st.download_button(
 
 st.divider()
 st.caption("Versión interactiva con control de gestión y tickets — CMPC Cordillera © 2025")
+# --- HISTOGRAMA DE CRITICIDAD ---
+st.divider()
+st.subheader("📈 Distribución de criticidad (1 → 100)")
+
+if "Criticidad_1a100" in df_filtrado.columns and not df_filtrado.empty:
+    # Convertimos a números válidos y redondeamos
+    crit = pd.to_numeric(df_filtrado["Criticidad_1a100"], errors="coerce").dropna()
+    crit = crit.clip(lower=1, upper=100).round().astype(int)
+
+    # Contamos frecuencia de cada nivel de criticidad
+    conteo = (
+        crit.value_counts()
+        .reindex(range(1, 101), fill_value=0)
+        .sort_index()
+        .rename("Cantidad de avisos")
+        .to_frame()
+    )
+
+    # Mostrar histograma de barras
+    st.bar_chart(conteo, use_container_width=True)
+
+    # Indicador complementario
+    st.caption("Distribución del backlog según el nivel de criticidad predicho por el modelo.")
+else:
+    st.info("No hay datos de criticidad disponibles para graficar tras los filtros aplicados.")
