@@ -100,7 +100,7 @@ with st.sidebar:
     grupo = st.selectbox("Grupo planificador", grupo_opts)
     prioridad = st.selectbox("Prioridad", prioridad_opts)
     abc = st.selectbox("Indicador ABC", abc_opts)
-    Dias_recomendados_por_gestionar = st.selectbox("Nivel criticidad", abc_opts)
+    Dias_recomendados_por_gestionar = st.selectbox("Nivel criticidad", Nivel_criticidad)
 
 # Aplicar filtros
 df_filtrado = df_session.copy()
