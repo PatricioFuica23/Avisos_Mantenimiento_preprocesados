@@ -113,7 +113,7 @@ if Nivel_criticidad != "(Todos)":
     df_filtrado = df_filtrado[df_filtrado["Nivel criticidad"].astype(str) == Nivel_criticidad]
 
 # --- MÉTRICAS ---
-st.subheader("📊 Resumen general")
+st.subheader("Metricas generales")
 col1, col2, col3 = st.columns(3)
 col1.metric("Total avisos", len(df_filtrado))
 col2.metric("Criticidad promedio", f"{df_filtrado['criticidad_final'].mean():.1f}" if "criticidad_final" in df_filtrado else "—")
