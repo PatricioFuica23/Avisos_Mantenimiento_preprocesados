@@ -1,6 +1,6 @@
 # ==============================================
 # 📊 APP STREAMLIT - CLASIFICACIÓN DE AVISOS CMPC
-# Adaptada a 'predicciones_avisos_sin_gestionar_rf_v5.xlsx'
+# SIN carga manual de archivo + SIN columna Ticket
 # ==============================================
 
 from __future__ import annotations
@@ -10,7 +10,6 @@ import numpy as np
 from io import BytesIO
 import os
 
-# Archivo donde guardaremos los cambios permanentes
 ARCHIVO_PERSISTENTE = "avisos_guardados.xlsx"
 
 # --- CONFIGURACIÓN ---
@@ -20,8 +19,8 @@ st.title("📊 Clasificación Automática de Avisos SAP PM")
 st.caption("Prototipo funcional de modelo automático de avisos de mantenimiento")
 
 st.markdown("""
-💡 **Objetivo:** Visualizar los avisos clasificados por el modelo, revisar su criticidad, 
-y permitir a los trabajadores marcar cuáles fueron gestionados y asignar un ticket para trazabilidad.
+💡 **Objetivo:** Visualizar los avisos clasificados por el modelo, revisar su criticidad,
+y permitir a los trabajadores marcar cuáles fueron gestionados.
 """)
 
 st.divider()
@@ -46,37 +45,28 @@ def color_hex_verde_amarillo_rojo(v: float, vmin: float = 1, vmax: float = 100) 
     b_ = int(a[2] + (b[2] - a[2]) * u)
     return f"#{r:02x}{g:02x}{b_:02x}"
 
-# --- SIDEBAR ---
-with st.sidebar:
-    st.header("⚙️ Configuración de la aplicación")
-    uploaded = st.file_uploader("📂 Cargar archivo de predicciones", type=["xlsx"])
-    st.caption("Por defecto se usará el archivo persistente o `predicciones_avisos_sin_gestionar_rf_v5.xlsx`.")
-
 # --- CARGA DE DATOS ---
-# 1️⃣ Si existe archivo con cambios persistentes, cargarlo
+# 1️⃣ Si existe archivo persistente guardado, cargarlo
 if os.path.exists(ARCHIVO_PERSISTENTE):
     df_raw = cargar_datos(ARCHIVO_PERSISTENTE)
 else:
-    # 2️⃣ Si no existe, cargar archivo subido o el archivo original
+    # 2️⃣ Cargar archivo original desde GitHub / local
     try:
-        if uploaded is not None:
-            df_raw = cargar_datos(uploaded)
-        else:
-            df_raw = cargar_datos("predicciones_avisos_sin_gestionar_rf_v5.xlsx")
+        df_raw = cargar_datos("predicciones_avisos_sin_gestionar_rf_v5.xlsx")
     except FileNotFoundError:
-        st.error("❌ No se encontró archivo. Súbelo desde la barra lateral.")
+        st.error("❌ No se encontró `predicciones_avisos_sin_gestionar_rf_v5.xlsx`.")
         st.stop()
 
 # --- SELECCIÓN DE COLUMNAS RELEVANTES ---
 columnas_presentes = df_raw.columns.tolist()
 
 cols_relevantes = [c for c in [
-    "Aviso", "Fecha de aviso", "Descripción", "Ubicac.técnica", "Indicador ABC", 
+    "Aviso", "Fecha de aviso", "Descripción", "Ubicac.técnica", "Indicador ABC",
     "Grupo planif.", "Clase de aviso", "Denominación", "Prioridad",
     "Txt. cód. mot.", "TextoCódProblem",
-    "criticidad_final", "Clase de orden_pred", "Cl.actividad PM_pred",  
+    "criticidad_final", "Clase de orden_pred", "Cl.actividad PM_pred",
     "Pto.tbjo.resp._pred", "Nivel criticidad",
-    "Gestionado", "Ticket"
+    "Gestionado"
 ] if c in columnas_presentes]
 
 df = df_raw[cols_relevantes].copy()
@@ -87,11 +77,9 @@ if "Fecha de aviso" in df.columns:
 if "criticidad_final" in df.columns:
     df["criticidad_final"] = pd.to_numeric(df["criticidad_final"], errors="coerce")
 
-# --- NUEVAS COLUMNAS (Gestionado y Ticket) ---
+# --- NUEVA COLUMNA (Gestionado) ---
 if "Gestionado" not in df.columns:
     df["Gestionado"] = False
-if "Ticket" not in df.columns:
-    df["Ticket"] = ""
 
 # --- SESSION STATE ---
 if "df_data" not in st.session_state:
@@ -99,9 +87,10 @@ if "df_data" not in st.session_state:
 
 df_session = st.session_state["df_data"]
 
-# --- FILTROS ---
+# --- SIDEBAR FILTROS ---
 with st.sidebar:
-    st.subheader("🔍 Filtros de visualización")
+    st.header("🔍 Filtros")
+
     grupo_opts = ["(Todos)"] + sorted(df_session["Grupo planif."].dropna().unique().astype(str).tolist()) if "Grupo planif." in df_session else ["(Todos)"]
     prioridad_opts = ["(Todos)"] + sorted(df_session["Prioridad"].dropna().unique().astype(str).tolist()) if "Prioridad" in df_session else ["(Todos)"]
     abc_opts = ["(Todos)"] + sorted(df_session["Indicador ABC"].dropna().unique().astype(str).tolist()) if "Indicador ABC" in df_session else ["(Todos)"]
@@ -112,6 +101,7 @@ with st.sidebar:
     abc = st.selectbox("Indicador ABC", abc_opts)
     Nivel_criticidad = st.selectbox("Nivel criticidad", nivel_opts)
 
+# --- APLICAR FILTROS ---
 df_filtrado = df_session.copy()
 if grupo != "(Todos)":
     df_filtrado = df_filtrado[df_filtrado["Grupo planif."].astype(str) == grupo]
@@ -146,10 +136,9 @@ edited_df = st.data_editor(
 # --- ACTUALIZAR Y GUARDAR ---
 mask_idx = df_session.index.isin(edited_df.index)
 df_session.loc[mask_idx, "Gestionado"] = edited_df["Gestionado"].values
-df_session.loc[mask_idx, "Ticket"] = edited_df["Ticket"].values
 st.session_state["df_data"] = df_session
 
-# **GUARDAR CAMBIOS DE FORMA PERSISTENTE**
+# Guardado persistente
 df_session.to_excel(ARCHIVO_PERSISTENTE, index=False)
 
 # --- VISTA ---
@@ -195,4 +184,4 @@ if "criticidad_final" in df_filtrado and not df_filtrado.empty:
 else:
     st.info("No hay datos de criticidad para graficar.")
 
-st.caption("Versión interactiva con control de gestión y tickets — CMPC Cordillera © 2025")
+st.caption("Versión interactiva con control de gestión — CMPC Cordillera © 2025")
