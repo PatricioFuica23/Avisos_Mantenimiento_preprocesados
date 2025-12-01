@@ -124,7 +124,7 @@ if pd.notna(Costo_prom):
 else:
     Costo_prom_fmt = "$0"
 
-col5.metric("Costo promedio estimado del Backlog", Costo_prom_fmt)
+col4.metric("Costo promedio estimado del Backlog", Costo_prom_fmt)
 
 Costo_total = pd.to_numeric(df_filtrado["Costo estimado"], errors="coerce").sum()
 # Redondear y formatear como dinero CLP
