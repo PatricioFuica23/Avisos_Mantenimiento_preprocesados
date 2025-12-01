@@ -117,7 +117,14 @@ else:
     col3.metric("% Gestionados", "0.0%")
 
 Costo_prom = pd.to_numeric(df_filtrado["Costo estimado"], errors="coerce").mean()
-col4.metric("Costo promedio del Backlog", Costo_prom )
+# Redondear y formatear como dinero CLP
+if pd.notna(Costo_prom):
+    Costo_prom = round(Costo_prom)
+    Costo_prom_fmt = f"${Costo_prom:,.0f}".replace(",", ".")
+else:
+    Costo_prom_fmt = "$0"
+
+col4.metric("Costo promedio del Backlog", Costo_prom_fmt)
 
 st.divider()
 
