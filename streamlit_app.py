@@ -14,7 +14,7 @@ ARCHIVO_ORIGINAL = "avisos_backlog_gestionados.xlsx"
 ARCHIVO_PERSISTENTE1 = "persistente_backlog_v2.xlsx"   # NUEVO ARCHIVO PERSISTENTE
 
 # --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Clasificación de Avisos SAP PM", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="Sistema de gestión de Avisos SAP PM", page_icon="🧠", layout="wide")
 
 st.title("📊 Clasificación Automática de Avisos SAP PM")
 st.caption("Prototipo funcional para visualizar y gestionar avisos no tratados.")
