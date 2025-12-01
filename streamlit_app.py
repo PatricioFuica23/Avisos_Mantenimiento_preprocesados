@@ -98,7 +98,7 @@ if abc != "(Todos)" and "Indicador ABC" in df_filtrado:
 # 📊 MÉTRICAS
 # -----------------------------
 st.subheader("📊 Resumen general")
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 
 col1.metric("Total avisos", len(df_filtrado))
 
@@ -115,6 +115,9 @@ if "Gestionado" in df_filtrado:
     col3.metric("% Gestionados", f"{pct_gest:.1f}%")
 else:
     col3.metric("% Gestionados", "0.0%")
+
+Costo_prom = pd.to_numeric(df_filtrado["Costo estimado"], errors="coerce").mean()
+col4.metric("Costo promedio del Backlog", Costo_prom )
 
 st.divider()
 
