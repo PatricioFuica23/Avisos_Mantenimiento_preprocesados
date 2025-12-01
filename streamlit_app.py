@@ -188,7 +188,21 @@ st.download_button("Descargar archivo actualizado", buffer, "avisos_actualizados
 st.subheader("📈 Distribución de criticidad")
 
 if "Criticidad (modelo)" in df_filtrado:
-    crit_vals = pd.to_numeric(df_filtrado["Criticidad (modelo)"], errors="coerce")
-    st.bar_chart(crit_vals)
+    crit_vals = pd.to_numeric(df_filtrado["Criticidad (modelo)"], errors="coerce").dropna()
+
+    # Crear distribución de frecuencias del 1 al 100
+    bins = list(range(1, 102))  # de 1 a 101, para 100 bins
+    hist = pd.cut(crit_vals, bins=bins, right=False)
+    freq = hist.value_counts().sort_index()
+
+    # Convertir a DataFrame para plot
+    freq_df = pd.DataFrame({
+        "Criticidad": [i for i in range(1, 101)],
+        "Cantidad": freq.values
+    })
+
+    st.bar_chart(freq_df.set_index("Criticidad"))
+else:
+    st.info("No hay datos de criticidad disponibles.")
 
 st.caption("Versión estable — CMPC Cordillera © 2025")
