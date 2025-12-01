@@ -130,7 +130,7 @@ Costo_total = pd.to_numeric(df_filtrado["Costo estimado"], errors="coerce").sum(
 # Redondear y formatear como dinero CLP
 if pd.notna(Costo_total):
     Costo_total = round(Costo_total)
-    Costo_prom_fmt = f"${Costo_total:,.0f}".replace(",", ".")
+    Costo_total_fmt = f"${Costo_total:,.0f}".replace(",", ".")
 else:
     Costo_total_fmt = "$0"
 
