@@ -98,7 +98,7 @@ if abc != "(Todos)" and "Indicador ABC" in df_filtrado:
 # 📊 MÉTRICAS
 # -----------------------------
 st.subheader("📊 Resumen general")
-col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3, col4, col5 = st.columns(5)
 
 col1.metric("Total avisos", len(df_filtrado))
 
@@ -124,7 +124,18 @@ if pd.notna(Costo_prom):
 else:
     Costo_prom_fmt = "$0"
 
-col4.metric("Costo promedio del Backlog", Costo_prom_fmt)
+col5.metric("Costo promedio estimado del Backlog", Costo_prom_fmt)
+
+Costo_total = pd.to_numeric(df_filtrado["Costo estimado"], errors="coerce").sum()
+# Redondear y formatear como dinero CLP
+if pd.notna(Costo_total):
+    Costo_total = round(Costo_total)
+    Costo_prom_fmt = f"${Costo_total:,.0f}".replace(",", ".")
+else:
+    Costo_total_fmt = "$0"
+
+col5.metric("Costo total estimado del Backlog", Costo_total_fmt)
+
 
 st.divider()
 
