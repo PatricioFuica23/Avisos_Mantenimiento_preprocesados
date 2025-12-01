@@ -103,7 +103,7 @@ st.subheader("📊 Resumen general")
 col1, col2, col3 = st.columns(3)
 
 col1.metric("Total avisos", len(df_filtrado))
-col2.metric("Criticidad promedio", f"{df_filtrado['Criticidad (modelo)'].mean():.1f}")
+col2.metric("Criticidad promedio", f"{df_filtrado["Criticidad (modelo)"].mean():.1f}")
 col3.metric("% Gestionados", f"{df_filtrado['Gestionado'].mean()*100:.1f}%")
 
 st.divider()
