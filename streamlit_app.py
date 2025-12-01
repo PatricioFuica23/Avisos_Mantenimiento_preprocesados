@@ -35,40 +35,83 @@ else:
         st.error(f"❌ No se encontró el archivo {ARCHIVO_ORIGINAL}.")
         st.stop()
 
-# --- SELECCIÓN DE COLUMNAS (Opción A) ---
-columnas = {
+# --- RENOMBRADO ROBUSTO DE COLUMNAS ---
+# Soporta tanto nombres originales como ya renombrados (del archivo persistente)
+rename_map = {
     "Aviso": "Aviso",
     "Fecha de aviso": "Fecha de aviso",
     "Descripción": "Descripción",
+
     "Ubicac.técnica_x": "Ubicación técnica",
+    "Ubicación técnica": "Ubicación técnica",
+
     "Indicador ABC": "Indicador ABC",
     "Grupo planif.": "Grupo planif.",
     "Clase de aviso": "Clase de aviso",
+
+    "Orden": "Orden de mantenimiento",
+    "Orden de mantenimiento": "Orden de mantenimiento",
+
     "Denominación": "Denominación",
     "Prioridad": "Prioridad",
+
     "Txt. cód. mot.": "Cód. motivo",
+    "Cód. motivo": "Cód. motivo",
+
     "TextoCódProblem": "Descripción motivo",
+    "Descripción motivo": "Descripción motivo",
+
     "criticidad_predicha": "Criticidad (modelo)",
+    "Criticidad (modelo)": "Criticidad (modelo)",
+
     "Clase_orden_recomendada": "Clase de orden (modelo)",
+    "Clase de orden (modelo)": "Clase de orden (modelo)",
+
     "Cl_actividad_PM_recomendada": "Actividad PM (modelo)",
+    "Actividad PM (modelo)": "Actividad PM (modelo)",
+
     "Pto_tbjo_resp_recomendado": "Centro de trabajo (modelo)",
-    "Costo_total_estimado": "Costo estimado"
+    "Centro de trabajo (modelo)": "Centro de trabajo (modelo)",
+
+    "Costo_total_estimado": "Costo estimado",
+    "Costo estimado": "Costo estimado",
 }
 
-columnas_presentes = [c for c in columnas.keys() if c in df_raw.columns]
+df_raw.rename(columns=rename_map, inplace=True)
 
+# --- SELECCIÓN DE COLUMNAS (Opción A) ---
+columnas_objetivo = [
+    "Aviso",
+    "Fecha de aviso",
+    "Descripción",
+    "Ubicación técnica",
+    "Indicador ABC",
+    "Grupo planif.",
+    "Clase de aviso",
+    "Orden de mantenimiento",
+    "Denominación",
+    "Prioridad",
+    "Cód. motivo",
+    "Descripción motivo",
+    "Criticidad (modelo)",
+    "Clase de orden (modelo)",
+    "Actividad PM (modelo)",
+    "Centro de trabajo (modelo)",
+    "Costo estimado",
+]
+
+columnas_presentes = [c for c in columnas_objetivo if c in df_raw.columns]
 df = df_raw[columnas_presentes].copy()
-df.rename(columns=columnas, inplace=True)
 
 # --- LIMPIEZA Y FORMATEO ---
 if "Fecha de aviso" in df.columns:
     df["Fecha de aviso"] = pd.to_datetime(df["Fecha de aviso"], errors="coerce").dt.date
 
-# Crear columna Gestionado si no existe
-if "Gestionado" not in df_raw.columns:
-    df["Gestionado"] = False
+# Crear columna Gestionado si no existe (y mantenerla si ya venía en el archivo persistente)
+if "Gestionado" in df_raw.columns:
+    df["Gestionado"] = df_raw["Gestionado"].astype(bool)
 else:
-    df["Gestionado"] = df_raw["Gestionado"]
+    df["Gestionado"] = False
 
 # --- STATE ---
 if "df_data" not in st.session_state:
@@ -82,9 +125,20 @@ df_session = st.session_state["df_data"]
 with st.sidebar:
     st.header("🔍 Filtros de visualización")
 
-    grupo_opts = ["(Todos)"] + sorted(df_session["Grupo planif."].dropna().astype(str).unique().tolist())
-    prioridad_opts = ["(Todos)"] + sorted(df_session["Prioridad"].dropna().astype(str).unique().tolist())
-    abc_opts = ["(Todos)"] + sorted(df_session["Indicador ABC"].dropna().astype(str).unique().tolist())
+    if "Grupo planif." in df_session.columns:
+        grupo_opts = ["(Todos)"] + sorted(df_session["Grupo planif."].dropna().astype(str).unique().tolist())
+    else:
+        grupo_opts = ["(Todos)"]
+
+    if "Prioridad" in df_session.columns:
+        prioridad_opts = ["(Todos)"] + sorted(df_session["Prioridad"].dropna().astype(str).unique().tolist())
+    else:
+        prioridad_opts = ["(Todos)"]
+
+    if "Indicador ABC" in df_session.columns:
+        abc_opts = ["(Todos)"] + sorted(df_session["Indicador ABC"].dropna().astype(str).unique().tolist())
+    else:
+        abc_opts = ["(Todos)"]
 
     grupo = st.selectbox("Grupo planificador", grupo_opts)
     prioridad = st.selectbox("Prioridad", prioridad_opts)
@@ -92,9 +146,15 @@ with st.sidebar:
 
 # Aplicar filtros
 df_filtrado = df_session.copy()
-if grupo != "(Todos)": df_filtrado = df_filtrado[df_filtrado["Grupo planif."] == grupo]
-if prioridad != "(Todos)": df_filtrado = df_filtrado[df_filtrado["Prioridad"] == prioridad]
-if abc != "(Todos)": df_filtrado = df_filtrado[df_filtrado["Indicador ABC"] == abc]
+
+if grupo != "(Todos)" and "Grupo planif." in df_filtrado.columns:
+    df_filtrado = df_filtrado[df_filtrado["Grupo planif."].astype(str) == grupo]
+
+if prioridad != "(Todos)" and "Prioridad" in df_filtrado.columns:
+    df_filtrado = df_filtrado[df_filtrado["Prioridad"].astype(str) == prioridad]
+
+if abc != "(Todos)" and "Indicador ABC" in df_filtrado.columns:
+    df_filtrado = df_filtrado[df_filtrado["Indicador ABC"].astype(str) == abc]
 
 # -----------------------------
 # 📊 MÉTRICAS
@@ -103,8 +163,26 @@ st.subheader("📊 Resumen general")
 col1, col2, col3 = st.columns(3)
 
 col1.metric("Total avisos", len(df_filtrado))
-col2.metric("Criticidad promedio", f"{df_filtrado["Criticidad (modelo)"].mean():.1f}")
-col3.metric("% Gestionados", f"{df_filtrado['Gestionado'].mean()*100:.1f}%")
+
+# Criticidad promedio robusta (sin romper si falta la columna)
+if "Criticidad (modelo)" in df_filtrado.columns and not df_filtrado.empty:
+    try:
+        crit_mean = pd.to_numeric(df_filtrado["Criticidad (modelo)"], errors="coerce").mean()
+        crit_text = f"{crit_mean:.1f}"
+    except Exception:
+        crit_text = "—"
+else:
+    crit_text = "—"
+
+col2.metric("Criticidad promedio", crit_text)
+
+if not df_filtrado.empty and "Gestionado" in df_filtrado.columns:
+    pct_gestionados = df_filtrado["Gestionado"].mean() * 100
+    pct_text = f"{pct_gestionados:.1f}%"
+else:
+    pct_text = "0.0%"
+
+col3.metric("% Gestionados", pct_text)
 
 st.divider()
 
@@ -124,8 +202,9 @@ edited_df = st.data_editor(
 )
 
 # Actualizar cambios en toda la base
-df_session.loc[edited_df.index, "Gestionado"] = edited_df["Gestionado"].values
-st.session_state["df_data"] = df_session
+if "Gestionado" in edited_df.columns:
+    df_session.loc[edited_df.index, "Gestionado"] = edited_df["Gestionado"].values
+    st.session_state["df_data"] = df_session
 
 # Guardado persistente
 df_session.to_excel(ARCHIVO_PERSISTENTE, index=False)
@@ -135,7 +214,10 @@ df_session.to_excel(ARCHIVO_PERSISTENTE, index=False)
 # -----------------------------
 vista = st.radio("Vista:", ["Todos", "Solo gestionados"], horizontal=True)
 
-df_vista = df_session if vista == "Todos" else df_session[df_session["Gestionado"]]
+if vista == "Todos":
+    df_vista = df_session
+else:
+    df_vista = df_session[df_session["Gestionado"] == True]
 
 st.dataframe(df_vista, use_container_width=True, hide_index=True)
 
@@ -161,8 +243,10 @@ st.download_button(
 # -----------------------------
 st.subheader("📈 Distribución de criticidad (modelo)")
 
-if "Criticidad (modelo)" in df_filtrado:
-    crit = df_filtrado["Criticidad (modelo)"].fillna(0).astype(float)
+if "Criticidad (modelo)" in df_filtrado.columns and not df_filtrado.empty:
+    crit = pd.to_numeric(df_filtrado["Criticidad (modelo)"], errors="coerce").dropna()
     st.bar_chart(crit, use_container_width=True)
+else:
+    st.info("No hay datos de criticidad disponibles para graficar.")
 
 st.caption("Versión actualizada — CMPC Cordillera © 2025")
