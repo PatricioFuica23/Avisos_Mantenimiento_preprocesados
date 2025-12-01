@@ -59,11 +59,14 @@ def crear_persistente_limpio():
     df.to_excel(ARCHIVO_PERSISTENTE, index=False)
     return df
 
-# --- CARGA DE DATOS SEGURO ---
+# --- CARGA DE DATOS ---
 if os.path.exists(ARCHIVO_PERSISTENTE):
-    df = cargar_excel(ARCHIVO_PERSISTENTE)
+    df_raw = cargar_excel(ARCHIVO_PERSISTENTE)
 else:
-    df = crear_persistente_limpio()
+    df_raw = cargar_excel(ARCHIVO_ORIGINAL)
+
+# MOSTRAR COLUMNAS REALES DEL ARCHIVO
+st.write("Columnas detectadas por la app:", df_raw.columns.tolist())
 
 # --- LIMPIEZA ---
 if "Fecha de aviso" in df.columns:
