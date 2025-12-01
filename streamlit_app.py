@@ -17,7 +17,7 @@ ARCHIVO_PERSISTENTE1 = "persistente_backlog_v2.xlsx"   # NUEVO ARCHIVO PERSISTEN
 st.set_page_config(page_title="Clasificación de Avisos SAP PM", page_icon="🧠", layout="wide")
 
 st.title("📊 Clasificación Automática de Avisos SAP PM")
-st.caption("Versión estable con persistente nuevo y columnas estandarizadas.")
+st.caption("Prototipo funcional para visualizar y gestionar avisos no tratados.")
 
 # --- FUNCIONES ---
 def cargar_excel(path: str) -> pd.DataFrame:
