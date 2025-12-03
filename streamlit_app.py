@@ -1,7 +1,6 @@
 # ==============================================
 # 📊 APP STREAMLIT - CLASIFICACIÓN DE AVISOS CMPC
-# Fuente: avisos_backlog_gestionados.xlsx
-# Persistente nuevo y limpio (v2)
+# Persistente limpio y guardado seguro (v2)
 # ==============================================
 
 from __future__ import annotations
@@ -9,6 +8,8 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 import os
+import tempfile
+import shutil  # Para guardado seguro
 
 ARCHIVO_ORIGINAL = "avisos_backlog_gestionados.xlsx"
 ARCHIVO_PERSISTENTE1 = "persistente_backlog_v2.xlsx"   # NUEVO ARCHIVO PERSISTENTE
@@ -16,7 +17,7 @@ ARCHIVO_PERSISTENTE1 = "persistente_backlog_v2.xlsx"   # NUEVO ARCHIVO PERSISTEN
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Sistema de gestión de Avisos SAP PM", page_icon="🧠", layout="wide")
 
-st.title("Sistema de apoyo a la gestion de avisos de mantenimiento")
+st.title("Sistema de apoyo a la gestión de avisos de mantenimiento")
 st.caption("Prototipo funcional para visualizar y gestionar avisos en backlog.")
 
 # --- FUNCIONES ---
@@ -26,31 +27,39 @@ def cargar_excel(path: str) -> pd.DataFrame:
     return df
 
 def crear_persistente_desde_original():
-    """Carga archivo original, renombra columnas válidas y genera persistente limpio."""
     df = cargar_excel(ARCHIVO_ORIGINAL)
 
     rename_map = {
         "Ubicac.técnica_x": "Ubicación técnica",
         "Txt. cód. mot.": "Cód. motivo",
         "TextoCódProblem": "Descripción motivo",
-        "criticidad_predicha": "Criticidad (modelo)",
-        "Clase_orden_recomendada": "Clase de orden (modelo)",
-        "Cl_actividad_PM_recomendada": "Actividad PM (modelo)",
-        "Pto_tbjo_resp_recomendado": "Centro de trabajo (modelo)",
+        "criticidad_predicha": "Criticidad (Modelo)",
+        "Clase_orden_recomendada": "Clase de orden (Modelo)",
+        "Cl_actividad_PM_recomendada": "Actividad PM (Modelo)",
+        "Pto_tbjo_resp_recomendado": "Centro de trabajo (Modelo)",
         "Costo_total_estimado": "Costo estimado",
     }
 
-    # Renombrado seguro
     for col, new in rename_map.items():
         if col in df.columns:
             df.rename(columns={col: new}, inplace=True)
 
-    # Crear columna Gestionado si no existe
     if "Gestionado" not in df.columns:
         df["Gestionado"] = False
 
-    df.to_excel(ARCHIVO_PERSISTENTE1, index=False)
+    # Guardado seguro del persistente
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
+        df.to_excel(tmp.name, index=False)
+        shutil.move(tmp.name, ARCHIVO_PERSISTENTE1)
+
     return df
+
+# ===== BORRAR ARCHIVO PERSISTENTE SI ESTÁ CORRUPTO =====
+if os.path.exists(ARCHIVO_PERSISTENTE1):
+    try:
+        pd.read_excel(ARCHIVO_PERSISTENTE1)
+    except:
+        os.remove(ARCHIVO_PERSISTENTE1)
 
 # --- CARGA ROBUSTA ---
 if os.path.exists(ARCHIVO_PERSISTENTE1):
@@ -58,22 +67,19 @@ if os.path.exists(ARCHIVO_PERSISTENTE1):
 else:
     df_raw = crear_persistente_desde_original()
 
-# Mostrar columnas detectadas (diagnóstico)
-# st.write("Columnas detectadas por la app:", df_raw.columns.tolist())
-
 # --- LIMPIEZA ---
 if "Fecha de aviso" in df_raw.columns:
     df_raw["Fecha de aviso"] = pd.to_datetime(df_raw["Fecha de aviso"], errors="coerce").dt.date
 
-# --- GUARDAR EN SESIÓN ---
+# --- SESIÓN ---
 if "df_data" not in st.session_state:
     st.session_state["df_data"] = df_raw.copy()
 
 df_session = st.session_state["df_data"]
 
-# -----------------------------
-# 🔍 SIDEBAR - FILTROS
-# -----------------------------
+# ---------------------------------------------------
+# 🔍 SIDEBAR FILTROS
+# ---------------------------------------------------
 with st.sidebar:
     st.header("🔍 Filtros")
 
@@ -85,7 +91,6 @@ with st.sidebar:
     prioridad = st.selectbox("Prioridad", prioridad_opts)
     abc = st.selectbox("Indicador ABC", abc_opts)
 
-# Aplicar filtros
 df_filtrado = df_session.copy()
 if grupo != "(Todos)" and "Grupo planif." in df_filtrado:
     df_filtrado = df_filtrado[df_filtrado["Grupo planif."].astype(str) == grupo]
@@ -94,85 +99,82 @@ if prioridad != "(Todos)" and "Prioridad" in df_filtrado:
 if abc != "(Todos)" and "Indicador ABC" in df_filtrado:
     df_filtrado = df_filtrado[df_filtrado["Indicador ABC"].astype(str) == abc]
 
-# -----------------------------
+# ---------------------------------------------------
 # 📊 MÉTRICAS
-# -----------------------------
+# ---------------------------------------------------
 st.subheader("📊 Resumen general")
 col1, col2, col3, col4, col5 = st.columns(5)
 
 col1.metric("Total avisos", len(df_filtrado))
 
-# Criticidad promedio seguro
-if "Criticidad (modelo)" in df_filtrado:
-    crit_mean = pd.to_numeric(df_filtrado["Criticidad (modelo)"], errors="coerce").mean()
+if "Criticidad (Modelo)" in df_filtrado:
+    crit_mean = pd.to_numeric(df_filtrado["Criticidad (Modelo)"], errors="coerce").mean()
     col2.metric("Criticidad promedio", f"{crit_mean:.1f}")
 else:
     col2.metric("Criticidad promedio", "—")
 
-# Porcentaje gestionados
 if "Gestionado" in df_filtrado:
     pct_gest = df_filtrado["Gestionado"].mean() * 100
     col3.metric("% Gestionados", f"{pct_gest:.1f}%")
 else:
     col3.metric("% Gestionados", "0.0%")
 
+# --- COSTO PROMEDIO ---
 Costo_prom = pd.to_numeric(df_filtrado["Costo estimado"], errors="coerce").mean()
-# Redondear y formatear como dinero CLP
 if pd.notna(Costo_prom):
     Costo_prom = round(Costo_prom)
     Costo_prom_fmt = f"${Costo_prom:,.0f}".replace(",", ".")
 else:
     Costo_prom_fmt = "$0"
+col4.metric("Costo promedio estimado", Costo_prom_fmt)
 
-col4.metric("Costo promedio estimado del Backlog", Costo_prom_fmt)
-
+# --- COSTO TOTAL ---
 Costo_total = pd.to_numeric(df_filtrado["Costo estimado"], errors="coerce").sum()
-# Redondear y formatear como dinero CLP
 if pd.notna(Costo_total):
     Costo_total = round(Costo_total)
     Costo_total_fmt = f"${Costo_total:,.0f}".replace(",", ".")
 else:
     Costo_total_fmt = "$0"
-
-col5.metric("Costo total estimado del Backlog", Costo_total_fmt)
-
+col5.metric("Costo total estimado", Costo_total_fmt)
 
 st.divider()
 
-# -----------------------------
+# ---------------------------------------------------
 # 📋 TABLA EDITABLE
-# -----------------------------
+# ---------------------------------------------------
 st.subheader("📋 Avisos en Backlog")
 
 edited_df = st.data_editor(
     df_filtrado,
     hide_index=True,
     use_container_width=True,
-    column_config={
-        "Gestionado": st.column_config.CheckboxColumn("Gestionado")
-    },
+    column_config={"Gestionado": st.column_config.CheckboxColumn("Gestionado")},
     key="tabla_editable"
 )
 
-# Guardar cambios
 if "Gestionado" in edited_df.columns:
     df_session.loc[edited_df.index, "Gestionado"] = edited_df["Gestionado"].values
     st.session_state["df_data"] = df_session
 
-# Guardar persistente nuevo
-df_session.to_excel(ARCHIVO_PERSISTENTE1, index=False)
+# ===== GUARDADO SEGURO DEL PERSISTENTE =====
+try:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
+        df_session.to_excel(tmp.name, index=False)
+        shutil.move(tmp.name, ARCHIVO_PERSISTENTE1)
+except Exception as e:
+    st.error(f"Error guardando persistente: {e}")
 
-# -----------------------------
+# ---------------------------------------------------
 # 👁️ VISUALIZACIÓN
-# -----------------------------
+# ---------------------------------------------------
 vista = st.radio("Vista:", ["Todos", "Solo gestionados"], horizontal=True)
 df_vista = df_session if vista == "Todos" else df_session[df_session["Gestionado"]]
 
 st.dataframe(df_vista, use_container_width=True, hide_index=True)
 
-# -----------------------------
+# ---------------------------------------------------
 # 📥 DESCARGA
-# -----------------------------
+# ---------------------------------------------------
 st.subheader("📥 Descargar Excel")
 
 buffer = BytesIO()
@@ -182,20 +184,18 @@ buffer.seek(0)
 
 st.download_button("Descargar archivo actualizado", buffer, "avisos_actualizados.xlsx")
 
-# -----------------------------
+# ---------------------------------------------------
 # 📈 HISTOGRAMA
-# -----------------------------
+# ---------------------------------------------------
 st.subheader("📈 Distribución de criticidad")
 
-if "Criticidad (modelo)" in df_filtrado:
-    crit_vals = pd.to_numeric(df_filtrado["Criticidad (modelo)"], errors="coerce").dropna()
+if "Criticidad (Modelo)" in df_filtrado:
+    crit_vals = pd.to_numeric(df_filtrado["Criticidad (Modelo)"], errors="coerce").dropna()
 
-    # Crear distribución de frecuencias del 1 al 100
-    bins = list(range(1, 102))  # de 1 a 101, para 100 bins
+    bins = list(range(1, 102))
     hist = pd.cut(crit_vals, bins=bins, right=False)
     freq = hist.value_counts().sort_index()
 
-    # Convertir a DataFrame para plot
     freq_df = pd.DataFrame({
         "Criticidad": [i for i in range(1, 101)],
         "Cantidad": freq.values
