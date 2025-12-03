@@ -20,7 +20,13 @@ ARCHIVO_PERSISTENTE = "persistente_backlog_v3.xlsx"  # NUEVO persistente limpio
 def chequear_persistente():
     if os.path.exists(ARCHIVO_PERSISTENTE):
         try:
-            pd.read_excel(ARCHIVO_PERSISTENTE)
+            df_test = pd.read_excel(ARCHIVO_PERSISTENTE)
+
+            # ❗ Borrar persistente si NO tiene criticidad
+            if "criticidad_predicha" not in df_test.columns and \
+               "Criticidad (Modelo)" not in df_test.columns:
+                os.remove(ARCHIVO_PERSISTENTE)
+
         except:
             os.remove(ARCHIVO_PERSISTENTE)
 
