@@ -206,3 +206,67 @@ else:
     st.info("No hay datos de criticidad disponibles.")
 
 st.caption("CMPC Cordillera © 2025 - Subgerencia de mantenimiento")
+
+
+# =======================
+# 🚨 SEMÁFORO DE CRITICIDAD
+# =======================
+
+st.subheader("🔦 Semáforo de criticidad")
+
+if "Criticidad (Modelo)" in df_filtrado:
+    crit_mean = pd.to_numeric(df_filtrado["Criticidad (Modelo)"], errors="coerce").mean()
+
+    if crit_mean <= 35:
+        color = "🟢 Criticidad Baja"
+    elif crit_mean <= 75:
+        color = "🟡 Criticidad Media"
+    else:
+        color = "🔴 Criticidad Alta"
+
+    st.markdown(
+        f"""
+        <div style="padding:12px; font-size:22px; font-weight:600;">
+        {color} — Promedio: {crit_mean:.1f}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+else:
+    st.info("No hay datos de criticidad para generar el semáforo.")
+
+
+# =========================
+# 🌡️ MAPA DE CALOR POR GRUPO PLANIFICADOR
+# =========================
+st.subheader("🌡️ Mapa de calor por Grupo Planificador")
+
+if "Grupo planif." in df_session and "Criticidad (Modelo)" in df_session:
+    df_heat = df_session.copy()
+    df_heat["Criticidad (Modelo)"] = pd.to_numeric(df_heat["Criticidad (Modelo)"], errors="coerce")
+
+    heat_data = df_heat.pivot_table(
+        index="Grupo planif.",
+        values="Criticidad (Modelo)",
+        aggfunc="mean"
+    ).fillna(0)
+
+    st.dataframe(heat_data.style.background_gradient(cmap="RdYlGn_r"))
+else:
+    st.info("No hay datos suficientes para construir el mapa de calor.")
+
+
+# ==========================
+# 🚨 ALERTA DE AVISOS CRÍTICOS
+# ==========================
+if "Criticidad (Modelo)" in df_session:
+    criticos = df_session[pd.to_numeric(df_session["Criticidad (Modelo)"], errors="coerce") > 90]
+
+    if len(criticos) > 0:
+        st.error(
+            f"⚠️ Hay {len(criticos)} avisos con criticidad mayor a 90. "
+            "Recomendación: revisar y priorizar de inmediato."
+        )
+
+        st.dataframe(criticos[["Aviso", "Descripción", "Criticidad (Modelo)", "Grupo planif.", "Prioridad"]], 
+                     use_container_width=True)
