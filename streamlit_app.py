@@ -16,8 +16,8 @@ ARCHIVO_PERSISTENTE1 = "persistente_backlog_v2.xlsx"   # NUEVO ARCHIVO PERSISTEN
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Sistema de gestión de Avisos SAP PM", page_icon="🧠", layout="wide")
 
-st.title("📊 Clasificación Automática de Avisos SAP PM")
-st.caption("Prototipo funcional para visualizar y gestionar avisos no tratados.")
+st.title("Sistema de apoyo a la gestion de avisos de mantenimiento")
+st.caption("Prototipo funcional para visualizar y gestionar avisos en backlog.")
 
 # --- FUNCIONES ---
 def cargar_excel(path: str) -> pd.DataFrame:
@@ -142,7 +142,7 @@ st.divider()
 # -----------------------------
 # 📋 TABLA EDITABLE
 # -----------------------------
-st.subheader("📋 Tabla de avisos")
+st.subheader("📋 Avisos en Backlog")
 
 edited_df = st.data_editor(
     df_filtrado,
@@ -205,4 +205,4 @@ if "Criticidad (modelo)" in df_filtrado:
 else:
     st.info("No hay datos de criticidad disponibles.")
 
-st.caption("Versión estable — CMPC Cordillera © 2025")
+st.caption("CMPC Cordillera © 2025 - Subgerencia de mantenimiento")
