@@ -26,6 +26,10 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+st.title("📊 Sistema de Apoyo a la Gestión de Avisos SAP PM")
+st.caption("Prototipo funcional para el análisis, priorización y gestión del backlog de mantenimiento.")
+st.divider()
+
 ARCHIVO_ORIGINAL = "avisos_backlog_gestionados.xlsx"
 ARCHIVO_PERSISTENTE = "persistente_backlog_v3.xlsx"
 
