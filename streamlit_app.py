@@ -1,6 +1,6 @@
 # ==============================================
 # 📊 APP STREAMLIT - CLASIFICACIÓN DE AVISOS CMPC
-# Versión estable con criticidad + semáforo + heatmap + alertas
+# Versión estable con criticidad + semáforo + heatmap + alertas + vistas
 # ==============================================
 
 from __future__ import annotations
@@ -11,18 +11,34 @@ import os
 import tempfile
 import shutil
 
+# ---------------------------------------------------
+# 📌 AJUSTE DE ANCHO (evita visualización delgada)
+# ---------------------------------------------------
+st.set_page_config(page_title="Sistema de gestión de Avisos SAP PM", layout="wide")
+
+st.markdown("""
+    <style>
+    .block-container {
+        max-width: 95% !important;
+        padding-left: 2rem;
+        padding-right: 2rem;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 ARCHIVO_ORIGINAL = "avisos_backlog_gestionados.xlsx"
-ARCHIVO_PERSISTENTE = "persistente_backlog_v3.xlsx"  # NUEVO persistente limpio
+ARCHIVO_PERSISTENTE = "persistente_backlog_v3.xlsx"
+
 
 # ---------------------------------------------------
-# ⚠️ BORRAR PERSISTENTE SI ESTÁ CORRUPTO O INCOMPLETO
+# ⚠️ BORRAR PERSISTENTE SI ESTÁ CORRUPTO O SIN CRITICIDAD
 # ---------------------------------------------------
 def chequear_persistente():
     if os.path.exists(ARCHIVO_PERSISTENTE):
         try:
             df_test = pd.read_excel(ARCHIVO_PERSISTENTE)
 
-            # ❗ Borrar persistente si NO tiene criticidad
+            # ❗Borrar si NO tiene criticidad
             if "criticidad_predicha" not in df_test.columns and \
                "Criticidad (Modelo)" not in df_test.columns:
                 os.remove(ARCHIVO_PERSISTENTE)
@@ -32,22 +48,23 @@ def chequear_persistente():
 
 chequear_persistente()
 
+
 # ---------------------------------------------------
-# 🔧 CARGA SEGURO DESDE EXCELl
+# 🔧 CARGA SEGURO DESDE EXCEL
 # ---------------------------------------------------
 def cargar_excel(path: str) -> pd.DataFrame:
     df = pd.read_excel(path, engine="openpyxl")
     df.columns = df.columns.astype(str).str.replace(r"[\r\n]+", " ", regex=True).str.strip()
     return df
 
+
 # ---------------------------------------------------
-# 🛠️ CREAR PERSISTENTE LIMPIO DESDE ORIGINAL
+# 🛠️ CREAR PERSISTENTE DESDE ORIGINAL
 # ---------------------------------------------------
 def crear_persistente_desde_original():
 
     df = cargar_excel(ARCHIVO_ORIGINAL)
 
-    # Renombres seguros
     rename_map = {
         "Ubicac.técnica_x": "Ubicación técnica",
         "Txt. cód. mot.": "Cód. motivo",
@@ -63,16 +80,15 @@ def crear_persistente_desde_original():
         if col in df.columns:
             df.rename(columns={col: new}, inplace=True)
 
-    # Crear columna Gestionado si no existe
     if "Gestionado" not in df.columns:
         df["Gestionado"] = False
 
-    # Guardado seguro del persistente
     with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
         df.to_excel(tmp.name, index=False)
         shutil.move(tmp.name, ARCHIVO_PERSISTENTE)
 
     return df
+
 
 # ---------------------------------------------------
 # 🔄 CARGA PRINCIPAL
@@ -82,11 +98,13 @@ if os.path.exists(ARCHIVO_PERSISTENTE):
 else:
     df_raw = crear_persistente_desde_original()
 
+
 # ---------------------------------------------------
 # LIMPIEZA
 # ---------------------------------------------------
 if "Fecha de aviso" in df_raw.columns:
     df_raw["Fecha de aviso"] = pd.to_datetime(df_raw["Fecha de aviso"], errors="coerce").dt.date
+
 
 # ---------------------------------------------------
 # SESIÓN
@@ -95,6 +113,7 @@ if "df_data" not in st.session_state:
     st.session_state["df_data"] = df_raw.copy()
 
 df_session = st.session_state["df_data"]
+
 
 # ---------------------------------------------------
 # SIDEBAR FILTROS
@@ -118,43 +137,35 @@ if prioridad != "(Todos)" and "Prioridad" in df_filtrado:
 if abc != "(Todos)" and "Indicador ABC" in df_filtrado:
     df_filtrado = df_filtrado[df_filtrado["Indicador ABC"].astype(str) == abc]
 
+
 # ---------------------------------------------------
-# 📊 MÉTRICAS
+# 📊 MÉTRICAS PRINCIPALES
 # ---------------------------------------------------
 st.subheader("📊 Resumen general")
 col1, col2, col3, col4, col5 = st.columns(5)
 
 col1.metric("Total avisos", len(df_filtrado))
 
-# Criticidad promedio
 if "Criticidad (Modelo)" in df_filtrado:
     crit_mean = pd.to_numeric(df_filtrado["Criticidad (Modelo)"], errors="coerce").mean()
     col2.metric("Criticidad promedio", f"{crit_mean:.1f}")
 else:
     col2.metric("Criticidad promedio", "—")
 
-# % gestionados
 if "Gestionado" in df_filtrado:
     pct = df_filtrado["Gestionado"].mean() * 100
     col3.metric("% Gestionados", f"{pct:.1f}%")
 else:
     col3.metric("% Gestionados", "0.0%")
 
-# Costo promedio
 Costo_prom = pd.to_numeric(df_filtrado["Costo estimado"], errors="coerce").mean()
-if pd.notna(Costo_prom):
-    Costo_prom_fmt = f"${round(Costo_prom):,}".replace(",", ".")
-else:
-    Costo_prom_fmt = "$0"
+Costo_prom_fmt = f"${round(Costo_prom):,}".replace(",", ".") if pd.notna(Costo_prom) else "$0"
 col4.metric("Costo promedio estimado", Costo_prom_fmt)
 
-# Costo total
 Costo_total = pd.to_numeric(df_filtrado["Costo estimado"], errors="coerce").sum()
-if pd.notna(Costo_total):
-    Costo_total_fmt = f"${round(Costo_total):,}".replace(",", ".")
-else:
-    Costo_total_fmt = "$0"
+Costo_total_fmt = f"${round(Costo_total):,}".replace(",", ".") if pd.notna(Costo_total) else "$0"
 col5.metric("Costo total estimado", Costo_total_fmt)
+
 
 # ---------------------------------------------------
 # 🔦 SEMÁFORO DE CRITICIDAD
@@ -174,8 +185,9 @@ if "Criticidad (Modelo)" in df_filtrado:
         unsafe_allow_html=True
     )
 
+
 # ---------------------------------------------------
-# 🚨 ALERTA CRÍTICOS > 90
+# 🚨 ALERTAS CRÍTICOS > 90
 # ---------------------------------------------------
 if "Criticidad (Modelo)" in df_session:
     criticos = df_session[pd.to_numeric(df_session["Criticidad (Modelo)"], errors="coerce") > 90]
@@ -188,6 +200,7 @@ if "Criticidad (Modelo)" in df_session:
         )
 
 st.divider()
+
 
 # ---------------------------------------------------
 # 📋 TABLA EDITABLE
@@ -211,8 +224,30 @@ with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
     df_session.to_excel(tmp.name, index=False)
     shutil.move(tmp.name, ARCHIVO_PERSISTENTE)
 
+
 # ---------------------------------------------------
-# 🌡️ HEATMAP POR GRUPO PLANIFICADOR
+# 👁️ VISTAS DEL BACKLOG (NUEVA SECCIÓN PEDIDA)
+# ---------------------------------------------------
+st.subheader("👁️ Visualización del backlog")
+
+vista = st.radio(
+    "Seleccionar vista:",
+    ["Todos", "Gestionados", "No gestionados"],
+    horizontal=True
+)
+
+if vista == "Todos":
+    df_vista = df_session
+elif vista == "Gestionados":
+    df_vista = df_session[df_session["Gestionado"] == True]
+else:
+    df_vista = df_session[df_session["Gestionado"] == False]
+
+st.dataframe(df_vista, use_container_width=True, hide_index=True)
+
+
+# ---------------------------------------------------
+# 🌡️ HEATMAP
 # ---------------------------------------------------
 st.subheader("🌡️ Mapa de calor por Grupo Planificador")
 
@@ -228,8 +263,9 @@ if "Grupo planif." in df_session and "Criticidad (Modelo)" in df_session:
         use_container_width=True
     )
 
+
 # ---------------------------------------------------
-# 📈 HISTOGRAMA
+# 📈 HISTOGRAMA CRITICIDAD
 # ---------------------------------------------------
 st.subheader("📈 Distribución de criticidad")
 
