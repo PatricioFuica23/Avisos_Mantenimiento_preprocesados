@@ -194,10 +194,6 @@ if "Criticidad (Modelo)" in df_session:
 
     if len(criticos) > 0:
         st.error(f"⚠️ {len(criticos)} avisos con Criticidad > 90. Revisar urgente.")
-        st.dataframe(
-            criticos[["Aviso", "Descripción", "Criticidad (Modelo)", "Grupo planif.", "Prioridad"]],
-            use_container_width=True
-        )
 
 st.divider()
 
