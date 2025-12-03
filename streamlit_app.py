@@ -170,8 +170,6 @@ col5.metric("Costo total estimado", Costo_total_fmt)
 # ---------------------------------------------------
 # 🔦 SEMÁFORO DE CRITICIDAD
 # ---------------------------------------------------
-st.subheader("🔦 Semáforo de criticidad")
-
 if "Criticidad (Modelo)" in df_filtrado:
     if crit_mean <= 33:
         nivel = "🟢 Criticidad Baja"
