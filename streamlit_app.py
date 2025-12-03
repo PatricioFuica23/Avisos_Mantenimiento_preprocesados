@@ -201,6 +201,10 @@ st.divider()
 # ---------------------------------------------------
 st.subheader("📋 Avisos en Backlog")
 
+# Ordenar backlog por criticidad (mayor → menor)
+if "Criticidad (Modelo)" in df_filtrado:
+    df_filtrado = df_filtrado.sort_values(by="Criticidad (Modelo)", ascending=False)
+
 edited_df = st.data_editor(
     df_filtrado,
     hide_index=True,
@@ -236,6 +240,10 @@ elif vista == "Gestionados":
     df_vista = df_session[df_session["Gestionado"] == True]
 else:
     df_vista = df_session[df_session["Gestionado"] == False]
+
+# Ordenar la vista final
+if "Criticidad (Modelo)" in df_vista:
+    df_vista = df_vista.sort_values(by="Criticidad (Modelo)", ascending=False)
 
 st.dataframe(df_vista, use_container_width=True, hide_index=True)
 
