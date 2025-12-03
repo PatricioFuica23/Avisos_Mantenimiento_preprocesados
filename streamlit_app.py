@@ -27,7 +27,7 @@ def chequear_persistente():
 chequear_persistente()
 
 # ---------------------------------------------------
-# 🔧 CARGA SEGURO DESDE EXCEL
+# 🔧 CARGA SEGURO DESDE EXCELl
 # ---------------------------------------------------
 def cargar_excel(path: str) -> pd.DataFrame:
     df = pd.read_excel(path, engine="openpyxl")
