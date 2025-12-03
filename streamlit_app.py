@@ -145,7 +145,7 @@ if abc != "(Todos)" and "Indicador ABC" in df_filtrado:
 # ---------------------------------------------------
 # 📊 MÉTRICAS PRINCIPALES
 # ---------------------------------------------------
-st.subheader("📊 Resumen general")
+st.subheader("📊 Métricas generales dadas por el modelo de inteligencia artificial")
 col1, col2, col3, col4, col5 = st.columns(5)
 
 col1.metric("Total avisos", len(df_filtrado))
