@@ -141,6 +141,10 @@ if prioridad != "(Todos)" and "Prioridad" in df_filtrado:
 if abc != "(Todos)" and "Indicador ABC" in df_filtrado:
     df_filtrado = df_filtrado[df_filtrado["Indicador ABC"].astype(str) == abc]
 
+columnas_a_ocultar = ["texto_full", "anio_aviso", "mes_aviso", "dia_semana_aviso"]
+
+df_filtrado = df_filtrado.drop(columns=columnas_a_ocultar, errors="ignore")
+df_session = df_session.drop(columns=columnas_a_ocultar, errors="ignore")
 
 # ---------------------------------------------------
 # 📊 MÉTRICAS PRINCIPALES
