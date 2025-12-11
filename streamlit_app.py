@@ -116,16 +116,32 @@ if "Fecha de aviso" in df_raw:
 # ---------------------------------------------------
 # OCULTAR COLUMNAS QUE NO DEBEN APARECER
 # ---------------------------------------------------
+# ---------------------------------------------------
+# OCULTAR COLUMNAS QUE NO DEBEN APARECER
+# ---------------------------------------------------
 columnas_ocultas = [
-    "texto_full",
-    "anio_aviso", "mes_aviso", "dia_semana_aviso",
-    "criticidad_predicha", "criticidad_modelo",
-    "criticidad_ML1", "criticidad_ML2", "criticidad_ML3",
-    "criticidad_ML4", "criticidad_ML5", "criticidad_ML6",
-    "criticidad_promedio",
+    "Ubicac.técnica",
+    "texto_total", "antiguedad", "dias_gestion",
+    "grupo_area", "criticidad_modelo",
+    "score_abc", "texto_act", "texto_resp",
+    "texto_full", "anio", "mes",
+    "dia_semana",
 ]
 
+# Aplicar eliminación en df_raw
 df_raw = df_raw.drop(columns=columnas_ocultas, errors="ignore")
+
+# Aplicar eliminación también en df_session al cargar datos
+if "df_data" not in st.session_state:
+    st.session_state["df_data"] = df_raw.copy()
+else:
+    # Sanear df_session si quedó con columnas antiguas
+    st.session_state["df_data"] = st.session_state["df_data"].drop(
+        columns=columnas_ocultas, errors="ignore"
+    )
+
+df_session = st.session_state["df_data"]
+
 
 
 # ---------------------------------------------------
