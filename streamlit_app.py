@@ -1,6 +1,6 @@
 # ==============================================
 # 📊 APP STREAMLIT - CLASIFICACIÓN DE AVISOS CMPC
-# Versión estable con criticidad + semáforo + heatmap + alertas + vistas
+# Adaptada a BACKLOG_PROCESADO_FINAL_V13.xlsx
 # ==============================================
 
 from __future__ import annotations
@@ -30,8 +30,9 @@ st.title("📊 Sistema de Apoyo a la Gestión de Avisos SAP PM")
 st.caption("Prototipo funcional para el análisis, priorización y gestión del backlog de mantenimiento.")
 st.divider()
 
-ARCHIVO_ORIGINAL = "avisos_backlog_gestionados.xlsx"
-ARCHIVO_PERSISTENTE = "persistente_backlog_v3.xlsx"
+# ARCHIVOS ACTUALIZADOS
+ARCHIVO_ORIGINAL = "BACKLOG_PROCESADO_FINAL_V13.xlsx"
+ARCHIVO_PERSISTENTE = "persistente_backlog_v4.xlsx"
 
 
 # ---------------------------------------------------
@@ -42,8 +43,7 @@ def chequear_persistente():
         try:
             df_test = pd.read_excel(ARCHIVO_PERSISTENTE)
 
-            # ❗Borrar si NO tiene criticidad
-            if "criticidad_predicha" not in df_test.columns and \
+            if "criticidad_final" not in df_test.columns and \
                "Criticidad (Modelo)" not in df_test.columns:
                 os.remove(ARCHIVO_PERSISTENTE)
 
@@ -57,8 +57,8 @@ chequear_persistente()
 # 🔧 CARGA SEGURO DESDE EXCEL
 # ---------------------------------------------------
 def cargar_excel(path: str) -> pd.DataFrame:
-    df = pd.read_excel(path, engine="openpyxl")
-    df.columns = df.columns.astype(str).str.replace(r"[\r\n]+", " ", regex=True).str.strip()
+    df = pd.read_excel(path)
+    df.columns = df.columns.astype(str).str.strip()
     return df
 
 
@@ -69,24 +69,27 @@ def crear_persistente_desde_original():
 
     df = cargar_excel(ARCHIVO_ORIGINAL)
 
+    # Renombres para que encaje con la estructura existente
     rename_map = {
         "Ubicac.técnica_x": "Ubicación técnica",
         "Txt. cód. mot.": "Cód. motivo",
         "TextoCódProblem": "Descripción motivo",
-        "criticidad_predicha": "Criticidad (Modelo)",
-        "Clase_orden_recomendada": "Clase de orden (Modelo)",
-        "Cl_actividad_PM_recomendada": "Actividad PM (Modelo)",
-        "Pto_tbjo_resp_recomendado": "Centro de trabajo (Modelo)",
-        "Costo_total_estimado": "Costo estimado",
+        "criticidad_final": "Criticidad (Modelo)",
+        "Clase de orden": "Clase de orden (Modelo)",
+        "Clase de actividad_pred": "Actividad PM (Modelo)",
+        "Puesto_responsable_pred": "Centro de trabajo (Modelo)",
+        "Costo_estimado": "Costo estimado",
     }
 
     for col, new in rename_map.items():
         if col in df.columns:
             df.rename(columns={col: new}, inplace=True)
 
+    # Crear columna Gestionado si no existe
     if "Gestionado" not in df.columns:
         df["Gestionado"] = False
 
+    # Guardado persistente seguro
     with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
         df.to_excel(tmp.name, index=False)
         shutil.move(tmp.name, ARCHIVO_PERSISTENTE)
@@ -106,8 +109,23 @@ else:
 # ---------------------------------------------------
 # LIMPIEZA
 # ---------------------------------------------------
-if "Fecha de aviso" in df_raw.columns:
+if "Fecha de aviso" in df_raw:
     df_raw["Fecha de aviso"] = pd.to_datetime(df_raw["Fecha de aviso"], errors="coerce").dt.date
+
+
+# ---------------------------------------------------
+# OCULTAR COLUMNAS QUE NO DEBEN APARECER
+# ---------------------------------------------------
+columnas_ocultas = [
+    "texto_full",
+    "anio_aviso", "mes_aviso", "dia_semana_aviso",
+    "criticidad_predicha", "criticidad_modelo",
+    "criticidad_ML1", "criticidad_ML2", "criticidad_ML3",
+    "criticidad_ML4", "criticidad_ML5", "criticidad_ML6",
+    "criticidad_promedio",
+]
+
+df_raw = df_raw.drop(columns=columnas_ocultas, errors="ignore")
 
 
 # ---------------------------------------------------
@@ -125,26 +143,22 @@ df_session = st.session_state["df_data"]
 with st.sidebar:
     st.header("🔍 Filtros")
 
-    grupo_opts = ["(Todos)"] + sorted(df_session["Grupo planif."].dropna().astype(str).unique().tolist()) if "Grupo planif." in df_session else ["(Todos)"]
-    prioridad_opts = ["(Todos)"] + sorted(df_session["Prioridad"].dropna().astype(str).unique().tolist()) if "Prioridad" in df_session else ["(Todos)"]
-    abc_opts = ["(Todos)"] + sorted(df_session["Indicador ABC"].dropna().astype(str).unique().tolist()) if "Indicador ABC" in df_session else ["(Todos)"]
+    grupo_opts = ["(Todos)"] + sorted(df_session["Grupo planif."].dropna().astype(str).unique())
+    prioridad_opts = ["(Todos)"] + sorted(df_session["Prioridad"].dropna().astype(str).unique())
+    abc_opts = ["(Todos)"] + sorted(df_session["Indicador ABC"].dropna().astype(str).unique())
 
     grupo = st.selectbox("Grupo planificador", grupo_opts)
     prioridad = st.selectbox("Prioridad", prioridad_opts)
     abc = st.selectbox("Indicador ABC", abc_opts)
 
 df_filtrado = df_session.copy()
-if grupo != "(Todos)" and "Grupo planif." in df_filtrado:
+if grupo != "(Todos)":
     df_filtrado = df_filtrado[df_filtrado["Grupo planif."].astype(str) == grupo]
-if prioridad != "(Todos)" and "Prioridad" in df_filtrado:
+if prioridad != "(Todos)":
     df_filtrado = df_filtrado[df_filtrado["Prioridad"].astype(str) == prioridad]
-if abc != "(Todos)" and "Indicador ABC" in df_filtrado:
+if abc != "(Todos)":
     df_filtrado = df_filtrado[df_filtrado["Indicador ABC"].astype(str) == abc]
 
-columnas_a_ocultar = ["texto_full", "anio_aviso", "mes_aviso", "dia_semana_aviso"]
-
-df_filtrado = df_filtrado.drop(columns=columnas_a_ocultar, errors="ignore")
-df_session = df_session.drop(columns=columnas_a_ocultar, errors="ignore")
 
 # ---------------------------------------------------
 # 📊 MÉTRICAS PRINCIPALES
@@ -154,52 +168,43 @@ col1, col2, col3, col4, col5 = st.columns(5)
 
 col1.metric("Total avisos", len(df_filtrado))
 
-if "Criticidad (Modelo)" in df_filtrado:
-    crit_mean = pd.to_numeric(df_filtrado["Criticidad (Modelo)"], errors="coerce").mean()
-    col2.metric("Criticidad promedio", f"{crit_mean:.1f}")
-else:
-    col2.metric("Criticidad promedio", "—")
+crit_mean = pd.to_numeric(df_filtrado["Criticidad (Modelo)"], errors="coerce").mean()
+col2.metric("Criticidad promedio", f"{crit_mean:.1f}")
 
-if "Gestionado" in df_filtrado:
-    pct = df_filtrado["Gestionado"].mean() * 100
-    col3.metric("% Gestionados", f"{pct:.1f}%")
-else:
-    col3.metric("% Gestionados", "0.0%")
+pct = df_filtrado["Gestionado"].mean() * 100
+col3.metric("% Gestionados", f"{pct:.1f}%")
 
-Costo_prom = pd.to_numeric(df_filtrado["Costo estimado"], errors="coerce").mean()
-Costo_prom_fmt = f"${round(Costo_prom):,}".replace(",", ".") if pd.notna(Costo_prom) else "$0"
-col4.metric("Costo promedio estimado", Costo_prom_fmt)
+Costo_prom = df_filtrado["Costo estimado"].mean()
+col4.metric("Costo promedio estimado", f"${round(Costo_prom):,}".replace(",", "."))
 
-Costo_total = pd.to_numeric(df_filtrado["Costo estimado"], errors="coerce").sum()
-Costo_total_fmt = f"${round(Costo_total):,}".replace(",", ".") if pd.notna(Costo_total) else "$0"
-col5.metric("Costo total estimado", Costo_total_fmt)
+Costo_total = df_filtrado["Costo estimado"].sum()
+col5.metric("Costo total estimado", f"${round(Costo_total):,}".replace(",", "."))
 
 
 # ---------------------------------------------------
 # 🔦 SEMÁFORO DE CRITICIDAD
 # ---------------------------------------------------
-if "Criticidad (Modelo)" in df_filtrado:
-    if crit_mean <= 35:
-        nivel = "🟢 Criticidad Baja"
-    elif crit_mean <= 70:
-        nivel = "🟡 Criticidad Media"
-    else:
-        nivel = "🔴 Criticidad Alta"
+if crit_mean <= 35:
+    nivel = "🟢 Criticidad Baja"
+elif crit_mean <= 70:
+    nivel = "🟡 Criticidad Media"
+else:
+    nivel = "🔴 Criticidad Alta"
 
-    st.markdown(
-        f"<div style='padding:12px; font-size:22px; font-weight:600;'>{nivel} — Promedio: {crit_mean:.1f}</div>",
-        unsafe_allow_html=True
-    )
+st.markdown(
+    f"<div style='padding:12px; font-size:22px; font-weight:600;'>{nivel} — Promedio: {crit_mean:.1f}</div>",
+    unsafe_allow_html=True
+)
 
 
 # ---------------------------------------------------
 # 🚨 ALERTAS CRÍTICOS > 90
 # ---------------------------------------------------
-if "Criticidad (Modelo)" in df_session:
-    criticos = df_session[pd.to_numeric(df_session["Criticidad (Modelo)"], errors="coerce") > 90]
+criticos = df_session[pd.to_numeric(df_session["Criticidad (Modelo)"], errors="coerce") > 90]
 
-    if len(criticos) > 0:
-        st.error(f"⚠️ {len(criticos)} avisos con Criticidad > 90. Revisar urgente.")
+if len(criticos) > 0:
+    st.error(f"⚠️ {len(criticos)} avisos con Criticidad > 90. Revisar urgente.")
+
 
 st.divider()
 
@@ -209,9 +214,7 @@ st.divider()
 # ---------------------------------------------------
 st.subheader("📋 Avisos en Backlog")
 
-# Ordenar backlog por criticidad (mayor → menor)
-if "Criticidad (Modelo)" in df_filtrado:
-    df_filtrado = df_filtrado.sort_values(by="Criticidad (Modelo)", ascending=False)
+df_filtrado = df_filtrado.sort_values(by="Criticidad (Modelo)", ascending=False)
 
 edited_df = st.data_editor(
     df_filtrado,
@@ -221,9 +224,8 @@ edited_df = st.data_editor(
     key="tabla_editable"
 )
 
-if "Gestionado" in edited_df:
-    df_session.loc[edited_df.index, "Gestionado"] = edited_df["Gestionado"].values
-    st.session_state["df_data"] = df_session
+df_session.loc[edited_df.index, "Gestionado"] = edited_df["Gestionado"]
+st.session_state["df_data"] = df_session
 
 # Guardado seguro
 with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
@@ -232,15 +234,11 @@ with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
 
 
 # ---------------------------------------------------
-# 👁️ VISTAS DEL BACKLOG (NUEVA SECCIÓN PEDIDA)
+# 👁️ VISTAS DEL BACKLOG
 # ---------------------------------------------------
 st.subheader("👁️ Visualización del backlog")
 
-vista = st.radio(
-    "Seleccionar vista:",
-    ["Todos", "Gestionados", "No gestionados"],
-    horizontal=True
-)
+vista = st.radio("Seleccionar vista:", ["Todos", "Gestionados", "No gestionados"], horizontal=True)
 
 if vista == "Todos":
     df_vista = df_session
@@ -249,9 +247,7 @@ elif vista == "Gestionados":
 else:
     df_vista = df_session[df_session["Gestionado"] == False]
 
-# Ordenar la vista final
-if "Criticidad (Modelo)" in df_vista:
-    df_vista = df_vista.sort_values(by="Criticidad (Modelo)", ascending=False)
+df_vista = df_vista.sort_values(by="Criticidad (Modelo)", ascending=False)
 
 st.dataframe(df_vista, use_container_width=True, hide_index=True)
 
@@ -261,32 +257,29 @@ st.dataframe(df_vista, use_container_width=True, hide_index=True)
 # ---------------------------------------------------
 st.subheader("🌡️ Mapa de calor por Grupo Planificador")
 
-if "Grupo planif." in df_session and "Criticidad (Modelo)" in df_session:
-    dfh = df_session.copy()
-    dfh["Criticidad (Modelo)"] = pd.to_numeric(dfh["Criticidad (Modelo)"], errors="coerce")
+dfh = df_session.copy()
+dfh["Criticidad (Modelo)"] = pd.to_numeric(dfh["Criticidad (Modelo)"], errors="coerce")
 
-    heat = dfh.pivot_table(index="Grupo planif.", values="Criticidad (Modelo)", aggfunc="mean")
-    heat = heat.fillna(0)
+heat = dfh.pivot_table(index="Grupo planif.", values="Criticidad (Modelo)", aggfunc="mean").fillna(0)
 
-    st.dataframe(
-        heat.style.background_gradient(cmap="RdYlGn_r"),
-        use_container_width=True
-    )
+st.dataframe(
+    heat.style.background_gradient(cmap="RdYlGn_r"),
+    use_container_width=True
+)
 
 
 # ---------------------------------------------------
-# 📈 HISTOGRAMA CRITICIDAD
+# 📈 HISTOGRAMA
 # ---------------------------------------------------
 st.subheader("📈 Distribución de criticidad")
 
-if "Criticidad (Modelo)" in df_filtrado:
-    crit_vals = pd.to_numeric(df_filtrado["Criticidad (Modelo)"], errors="coerce").dropna()
+crit_vals = pd.to_numeric(df_filtrado["Criticidad (Modelo)"], errors="coerce").dropna()
 
-    bins = list(range(1, 102))
-    hist = pd.cut(crit_vals, bins=bins, right=False)
-    freq = hist.value_counts().sort_index()
+bins = list(range(1, 102))
+hist = pd.cut(crit_vals, bins=bins, right=False)
+freq = hist.value_counts().sort_index()
 
-    freq_df = pd.DataFrame({"Criticidad": range(1, 101), "Cantidad": freq.values})
-    st.bar_chart(freq_df.set_index("Criticidad"))
+freq_df = pd.DataFrame({"Criticidad": range(1, 101), "Cantidad": freq.values})
+st.bar_chart(freq_df.set_index("Criticidad"))
 
 st.caption("CMPC Cordillera © 2025 - Subgerencia de mantenimiento")
